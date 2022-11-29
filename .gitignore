@@ -1,0 +1,7 @@
+# All files to avoid committing to the Git repo
+
+# C++ output executables
+*.out
+
+# Test files, named by convention
+test*.txt
