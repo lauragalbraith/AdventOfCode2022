@@ -77,5 +77,30 @@ int main() {
   }
 
   cout << "Part 1 answer: " << score_sum << endl;
+
+  // Part 2: interpret second character as end result
+  score_sum = 0;
+
+  ifstream f2("input.txt");
+  string line;
+  while (getline(f2, line)) {
+    Play opponent_play = CharToPlay(line[0]);
+
+    // determine my play
+    int desired_outcome = static_cast<int>(CharToPlay(line[2]));  // X: lose,0;  Y: draw,1;  Z: win,2
+
+    // same logic as last time, just shifted by one
+    int desired_play_value = (desired_outcome - 1 + static_cast<int>(opponent_play) + static_cast<int>(Play::kInvalidPlay)) % static_cast<int>(Play::kInvalidPlay);
+    Play desired_play = static_cast<Play>(desired_play_value);
+
+    // calculate score from outcome of round
+    score_sum += desired_outcome * 3;
+
+    // add value of the play I made
+    score_sum += ScoreOfPlay(desired_play);
+  }
+
+  cout << "Part 2 answer: " << score_sum << endl;
+
   return 0;
 }
