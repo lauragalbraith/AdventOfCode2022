@@ -57,5 +57,24 @@ int main() {
 
   cout << "Part 1 answer: " << priority_sum << endl;
 
+  // Part 2: Find the item type that corresponds to the badges of each three-Elf group
+  priority_sum = 0;
+  for (unsigned long rucksack_i = 0; rucksack_i < input_lines.size();) {
+    vector<int> group_bits(kNumberItemTypes, 0);
+    for (unsigned int i = 0; i < 3; ++i, ++rucksack_i) {
+      for (auto c:input_lines[rucksack_i]) {
+        unsigned long pos = c >= 'a' ? c - 'a' : c - 'A' + kLettersInAlphabet;
+        group_bits[pos] |= 1 << i;
+        if (group_bits[pos] == 0b0111) {
+          cout << "group badge for elves ending on line " << rucksack_i << " is " << c << endl;
+          priority_sum += pos+1;  // 1-indexed
+          break;
+        }
+      }
+    }
+  }
+
+  cout << "Part 2 answer: " << priority_sum << endl;
+
   return 0;
 }
