@@ -26,3 +26,14 @@ for p in elf_pairs:
     encompassed_elves += 1
 
 print("Part 1 answer: {}".format(encompassed_elves))
+
+# Part 2: In how many assignment pairs do the ranges overlap?
+
+overlapping_pairs = 0
+for p in elf_pairs:
+  if p[0][1] >= p[1][0] and p[0][1] <= p[1][1]:  # first elf ends inside of second elf
+    overlapping_pairs += 1
+  elif p[1][1] >= p[0][0] and p[1][1] <= p[0][1]:  # second elf ends inside of first elf
+    overlapping_pairs += 1
+
+print("Part 2 answer: {}".format(overlapping_pairs))
