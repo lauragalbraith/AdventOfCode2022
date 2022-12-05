@@ -8,6 +8,7 @@ pylintrc sourced from https://google.github.io/styleguide/pyguide.html
 """
 
 from collections import deque
+from copy import deepcopy
 import re
 
 # cheat a little bit, and see from input file we'll need 9 stacks
@@ -56,19 +57,39 @@ with open('input.txt', 'r', encoding='ascii') as f:
         int(match.group(2))-1,
         int(match.group(3))-1))
 
+# copy our initial stack configuration to be identical for Part 2
+initial_stacks = deepcopy(stacks)
+
 # simulate crate movements
 for m in movements:
   # crates move one at a time, in LIFO order
   for i in range(0,m[0]):
     stacks[m[2]].append(stacks[m[1]].pop())
 
-# After the rearrangement procedure completes, what crate ends up on top of
-# each stack?
+# Part 1: After the rearrangement procedure completes, what crate ends up on
+# top of each stack?
 top_stack_elements = []
 for stack in stacks:
   top_stack_elements.append(stack[-1])
 
 answer = ''.join(top_stack_elements)
 print(f'Part 1 answer: {answer}')
+
+# Part 2: After the rearrangement procedure completes, what crate ends up on
+# top of each stack?
+for m in movements:
+  # crates move how_many at a time, retaining order
+  removed_crates = deque()
+  for i in range(0,m[0]):
+    removed_crates.appendleft(initial_stacks[m[1]].pop())
+  for crate in removed_crates:
+    initial_stacks[m[2]].append(crate)
+
+top_stack_elements = []
+for stack in initial_stacks:
+  top_stack_elements.append(stack[-1])
+
+answer = ''.join(top_stack_elements)
+print(f'Part 2 answer: {answer}')
 
 # TODO after solving Day 5, write a python module to load puzzle input
