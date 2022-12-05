@@ -10,6 +10,7 @@ pylintrc sourced from https://google.github.io/styleguide/pyguide.html
 from collections import deque
 from copy import deepcopy
 import re
+from util.pyfileutil.fileutil import read_ascii_file_lines
 
 # cheat a little bit, and see from input file we'll need 9 stacks
 NUM_STACKS = 9
@@ -27,35 +28,29 @@ stacks_filled = False
 movements = []  # array of tuples: (how_many, from, to)
 movement_re = r'^move (\d+) from (\d+) to (\d+)'
 
-with open('input.txt', 'r', encoding='ascii') as f:
+for line in read_ascii_file_lines('input.txt'):
+  # skip blank lines
+  if len(line) < 10:
+    continue
+  # mark when we reach end of stacks list
+  if line[0] == ' ' and line[1] == '1':
+    stacks_filled = True
+    continue
   # parse initial stack configuration
-  for line in f:
-    # line = line.rstrip()  # not removing newlines b/c spaces are demarking
-    # skip blank lines
-    if len(line) < 10:
-      continue
-    # mark when we reach end of stacks list
-    if line[0] == ' ' and line[1] == '1':
-      stacks_filled = True
-      continue
-    # parse initial stack configuration
-    if not stacks_filled:
-      char_i = 0
-      for stack_i in range(0,NUM_STACKS):
-        # if len(line) <= char_i:  # spaces continue until end of line...
-          # break
-        # print(f'on stack_i {stack_i} and char_i is {char_i}')
-        if line[char_i] == '[':
-          stacks[stack_i].appendleft(line[char_i+1])
-        char_i += 4  # move past crate or spaces
-    # parse movement instructions
-    else:
-      match = re.search(movement_re, line)
-      movements.append(
-        (int(match.group(1)),
-        # change 1-indexed stack numbers to 0-indexed
-        int(match.group(2))-1,
-        int(match.group(3))-1))
+  if not stacks_filled:
+    char_i = 0
+    for stack_i in range(0,NUM_STACKS):
+      if line[char_i] == '[':
+        stacks[stack_i].appendleft(line[char_i+1])
+      char_i += 4  # move past crate or spaces
+  # parse movement instructions
+  else:
+    match = re.search(movement_re, line)
+    movements.append(
+      (int(match.group(1)),
+      # change 1-indexed stack numbers to 0-indexed
+      int(match.group(2))-1,
+      int(match.group(3))-1))
 
 # copy our initial stack configuration to be identical for Part 2
 initial_stacks = deepcopy(stacks)
@@ -91,5 +86,3 @@ for stack in initial_stacks:
 
 answer = ''.join(top_stack_elements)
 print(f'Part 2 answer: {answer}')
-
-# TODO after solving Day 5, write a python module to load puzzle input
