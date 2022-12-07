@@ -34,8 +34,30 @@ class Directory:
     return self.child_dirs[dir_name]
 
   def calculate_total_size(self):
-    # TODO calculate size of all child dirs, then add all files, then update us
-    print('TODO')
+    self.total_size = 0
+
+    # calculate size of all child directories
+    for child_dir in self.child_dirs.items():
+      child_dir[1].calculate_total_size()
+      self.total_size += child_dir[1].total_size
+
+    # add size of all files in this directory
+    for file_size in self.files.items():
+      self.total_size += file_size[1]
+
+  def sum_small_dirs(self):
+    small_sum = 0
+
+    # sum size of all small child directories
+    for child_dir in self.child_dirs.items():
+      small_sum += child_dir[1].sum_small_dirs()
+
+    # check if this directory qualifies as small
+    if self.total_size <= Directory.SMALL_DIR_LIMIT:
+      small_sum += self.total_size
+
+    return small_sum
+
 
 # Keep dirs as a tree structure, anchored at '/'
 root = Directory('/', None)
@@ -59,7 +81,7 @@ while i < (len(terminal_output) - 1):
   cd_match = re.match(cd_re, cmd)
   if cd_match is not None:
     next_dir = cd_match.group(1)
-    # print(f'line {i} *{cmd}* is a cd cmd to {next_dir}')
+    # print(f'TESTING: line {i} *{cmd}* is a cd cmd to {next_dir}')
     if next_dir == '/':
       current_dir = root
     elif next_dir == '..':
@@ -78,6 +100,7 @@ while i < (len(terminal_output) - 1):
   while (i+1 < len(terminal_output)) and (terminal_output[i+1][0] != '$'):
     i += 1
     ls_output_line = terminal_output[i]
+    # print(f'TESTING: i is now {i} and line from ls is *{ls_output_line}*')
 
     # parse directory
     dir_match = re.match(dir_re, ls_output_line)
@@ -93,15 +116,14 @@ while i < (len(terminal_output) - 1):
 
     current_dir.add_file(file_match.group(2), int(file_match.group(1)))
 
-  # print(f'Done with ls; i is now {i}')
+  # print(f'TESTING: Done with ls; i is now {i}')
 
 # For each directory, calculate its size
 root.calculate_total_size()
 
-# For each directory with size <= 100000, note it in the sum
-small_dir_sum = 0
-# TODO use SMALL_DIR_LIMIT
-
+# Find all of the directories with a total size of at most 100000.
+# What is the sum of the total sizes of those directories?
+small_dir_sum = root.sum_small_dirs()
 print(f'Part 1 answer: {small_dir_sum}')
 
 # TODO after completing puzzle, install apt upgrades: apt list --upgradable
