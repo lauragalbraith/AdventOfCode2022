@@ -58,6 +58,21 @@ class Directory:
 
     return small_sum
 
+  def smallest_dir_above(self, min_size):
+    # to find the smallest directory that is at least as large as needed,
+    # recurse until we hit a directory that's too small
+    if self.total_size < min_size:
+      return None
+
+    smallest = self.total_size
+    # see if any child directories qualify and are smaller than we are
+    for child_dir in self.child_dirs.items():
+      child_size = child_dir[1].smallest_dir_above(min_size)
+      if child_size is not None and child_size < smallest:
+        smallest = child_size
+
+    return smallest
+
 
 # Keep dirs as a tree structure, anchored at '/'
 root = Directory('/', None)
@@ -69,19 +84,18 @@ file_re = r'^(\d+) (.+)$'
 dir_re = r'^dir (.+)$'
 terminal_output = read_ascii_file_lines('input.txt')
 
+# Part 1
 # Identify all directories & files by reading through terminal output
 # use a while loop instead of for to manipulate inside block
 i = -1
 while i < (len(terminal_output) - 1):
   i += 1
   cmd = terminal_output[i]
-  # print(f'TESTING: i is {i}, cmd is *{cmd}*')
 
   # change directory command
   cd_match = re.match(cd_re, cmd)
   if cd_match is not None:
     next_dir = cd_match.group(1)
-    # print(f'TESTING: line {i} *{cmd}* is a cd cmd to {next_dir}')
     if next_dir == '/':
       current_dir = root
     elif next_dir == '..':
@@ -100,7 +114,6 @@ while i < (len(terminal_output) - 1):
   while (i+1 < len(terminal_output)) and (terminal_output[i+1][0] != '$'):
     i += 1
     ls_output_line = terminal_output[i]
-    # print(f'TESTING: i is now {i} and line from ls is *{ls_output_line}*')
 
     # parse directory
     dir_match = re.match(dir_re, ls_output_line)
@@ -116,8 +129,6 @@ while i < (len(terminal_output) - 1):
 
     current_dir.add_file(file_match.group(2), int(file_match.group(1)))
 
-  # print(f'TESTING: Done with ls; i is now {i}')
-
 # For each directory, calculate its size
 root.calculate_total_size()
 
@@ -125,5 +136,15 @@ root.calculate_total_size()
 # What is the sum of the total sizes of those directories?
 small_dir_sum = root.sum_small_dirs()
 print(f'Part 1 answer: {small_dir_sum}')
+
+# Part 2
+# Find the smallest directory that, if deleted, would free up enough space on
+# the filesystem to run the update. What is the total size of that directory?
+TOTAL_SPACE = 70000000
+UPDATE_NEEDED_SPACE = 30000000
+min_space_to_delete = UPDATE_NEEDED_SPACE - (TOTAL_SPACE - root.total_size)
+
+to_delete_size = root.smallest_dir_above(min_space_to_delete)
+print(f'Part 2 answer: {to_delete_size}')
 
 # TODO after completing puzzle, install apt upgrades: apt list --upgradable
