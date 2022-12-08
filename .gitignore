@@ -4,4 +4,4 @@
 *.out
 
 # Test files, named by convention
-test*.txt
+*test*.txt
