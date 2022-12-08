@@ -36,6 +36,9 @@ class TallestToThe:
   def __str__(self):
     return (f'Tallest to the East: {self.e}, North: {self.n}, '
             f'West: {self.w}, South: {self.s}')
+  def is_taller_in_any_direction(self, height):
+    return height > self.e or height > self.n or \
+          height > self.w or height > self.s
 
 # TallestToThe = namedtuple('TallestToThe', 'e n w s')  # TODO clean up
 # array of arrays of TallestToThe types
@@ -72,6 +75,7 @@ for r in reversed(range(ROWS)): # range(ROWS-1, -1, -1):
     # col = row[c]
     # print(f'row:{r}, col:{c}: Tallest to the {col}')
 
+# Compare each tree (including borders) against tallest in each direction
 visible_trees = 0
 
 """
@@ -93,6 +97,12 @@ to the edge and must reach the edge for the destination to be counted
 tallest to the north, tallest to the east, etc. then the DFS wouldn't have
 to continue too far when the answer is in the memo
 """
+for r in range(ROWS):
+  for c in range(COLS):
+    if tallest_to_the[r][c].is_taller_in_any_direction(tree_heights[r][c]):
+      visible_trees += 1
+
+# Time: O(trees), which is 99^2; Space: O(trees)
 print(f'Part 1 answer: {visible_trees}')
 
 # Part 2
