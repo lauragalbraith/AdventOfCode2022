@@ -7,7 +7,6 @@ pylintrc sourced from https://google.github.io/styleguide/pyguide.html
 """
 
 from util.pyfileutil.fileutil import read_ascii_file_lines
-# from collections import namedtuple  # TODO clean up
 
 # Parse input
 tree_height_strings = read_ascii_file_lines('input.txt')
@@ -20,27 +19,27 @@ for r in range(ROWS):
   for c in range(COLS):
     tree_heights[r][c] = int(tree_height_strings[r][c])
 
-# testing - TODO remove
-# for r in range(5):
-  # row = tree_heights[r]
-  # print(f'row: len {len(row)}; first elem: {row[0]} of type {type(row[0])}')
-
 # Part 1
 # Consider your map; how many trees are visible from outside the grid?
 # when looking directly along a row or column
 
+# east, north, west, south
+row_dirs = [0, -1, 0, 1]
+col_dirs = [1, 0, -1, 0]
+
 # Create a memoization of the tallest trees to the east, north, west, south
 class TallestToThe:
+  """Saves how tall the tallest trees are in each direction"""
   def __init__(self):
     self.e, self.n, self.w, self.s = -1,-1,-1,-1
   def __str__(self):
     return (f'Tallest to the East: {self.e}, North: {self.n}, '
             f'West: {self.w}, South: {self.s}')
-  def is_taller_in_any_direction(self, height):
-    return height > self.e or height > self.n or \
-          height > self.w or height > self.s
+  def is_taller_in_any_direction(self, h):
+    return h > self.e or h > self.n or h > self.w or h > self.s
+  def from_row_col_dirs(self, d):
+    return [self.e, self.n, self.w, self.s][d]
 
-# TallestToThe = namedtuple('TallestToThe', 'e n w s')  # TODO clean up
 # array of arrays of TallestToThe types
 tallest_to_the = [[TallestToThe() for c in range(COLS)] for r in range(ROWS)]
 
@@ -68,35 +67,9 @@ for r in reversed(range(ROWS)): # range(ROWS-1, -1, -1):
     tallest_to_the[r][c].s = tallest_per_col[c]
     tallest_per_col[c] = max(tallest_per_col[c], tree_heights[r][c])
 
-# testing - TODO remove
-# for r in range(ROWS):
-  # row = tallest_to_the[r]
-  # for c in range(COLS):
-    # col = row[c]
-    # print(f'row:{r}, col:{c}: Tallest to the {col}')
-
 # Compare each tree (including borders) against tallest in each direction
 visible_trees = 0
 
-"""
-# IDEAS: brute-force: check every row and column, front and back, and mark
-a matrix for every visible tree whose value is not strictly ascending in
-that direction; count number of ones in final matrix
-# BFS, treating edges as only N-S-E-W movements; but some winding path that
-is strictly increasing finds an inner tree, that tree could be blocked from
-view on all the borders of that winding path and should not be counted as
-visible
-# DFS from each border tree, only treating >= values as edges - but if we
-got walled in by really short trees we might never reach a super tall inner
-tree which should be counted
-# DFS all inner trees, only treating < trees as edges - but this would
-incorrectly count an inner tree that is walled in by short trees but then
-walled in again by really tall trees; each DFS path must be a straight line
-to the edge and must reach the edge for the destination to be counted
-# could I combine this with DP and store four numbers for each tree: the
-tallest to the north, tallest to the east, etc. then the DFS wouldn't have
-to continue too far when the answer is in the memo
-"""
 for r in range(ROWS):
   for c in range(COLS):
     if tallest_to_the[r][c].is_taller_in_any_direction(tree_heights[r][c]):
@@ -106,4 +79,40 @@ for r in range(ROWS):
 print(f'Part 1 answer: {visible_trees}')
 
 # Part 2
-# TODO
+# What is the highest scenic score possible for any tree?
+max_scenic_score = 0
+
+# do not consider edges since their scenic score is reduced to zero
+for r in range(1, ROWS-1):
+  for c in range(1, COLS-1):
+    height = tree_heights[r][c]
+    scenic_score = 1
+
+    for direction in range(len(row_dirs)):
+      visible_dir_trees = 1  # the tree at the end of our path
+
+      # do we already know our sightline ends at the edge of the grid?
+      if tallest_to_the[r][c].from_row_col_dirs(direction) < height:
+        if direction % 2:
+          # north or south: diff by rows
+          visible_dir_trees = r if direction == 1 else ROWS - r - 1
+        else:
+          # east or west: diff by columns
+          visible_dir_trees = c if direction == 2 else COLS - c - 1
+
+      # otherwise, walk to the edge of our sightline
+      else:
+        neighbor_r = r + row_dirs[direction]
+        neighbor_c = c + col_dirs[direction]
+        while 0 <= neighbor_r < ROWS and 0 <= neighbor_c < COLS and \
+            height > tree_heights[neighbor_r][neighbor_c]:
+          visible_dir_trees += 1
+          neighbor_r += row_dirs[direction]
+          neighbor_c += col_dirs[direction]
+
+      scenic_score *= visible_dir_trees
+
+    max_scenic_score = max(max_scenic_score, scenic_score)
+
+# Time: O(n^3) where n is 99; Space: O(n^2)
+print(f'Part 2 answer: {max_scenic_score}')
