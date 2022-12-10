@@ -11,11 +11,35 @@ import re
 
 ADD_X_INSTR_RE = r'^addx (.+)$'
 
-def emulate_cpu(instructions, desired_cycles):
+CRT_WIDTH = 40
+
+def add_signal_strength(
+  desired_cycles,
+  current_cycle,
+  current_x,
+  signal_strength_sum):
+
+  if current_cycle in desired_cycles:
+    signal_strength_sum += current_cycle * current_x
+
+  return signal_strength_sum
+
+def draw_crt(crt_image, current_cycle, current_x, _):
+  # NOTE: cycle is 1-indexed and crt_image is 0-indexed
+  # pixel 0 is drawn during cycle 1, then pixel 1 during cycle 2, etc.
+  pixel_row = (current_cycle-1) // CRT_WIDTH
+  pixel_col = (current_cycle-1) % CRT_WIDTH
+
+  # check if sprite is close to the pixel being drawn
+  # X register value is the location of the middle sprite pixel
+  if current_x >= 0 and -1 <= (pixel_col - current_x) <= 1:
+    crt_image[pixel_row * CRT_WIDTH + pixel_col] = '#'
+
+def emulate_cpu(instructions, desired_output, during_cycle_func):
   # single register X, starts as 1
   x = 1
   cycle = 1
-  signal_strength_sum = 0
+  signal_sum = 0
 
   for instr in instructions:
     final_x = x
@@ -26,21 +50,19 @@ def emulate_cpu(instructions, desired_cycles):
       add_x_match = re.match(ADD_X_INSTR_RE, instr)
       final_x = x + int(add_x_match.group(1))
 
-      # check for desired cycle
-      if cycle in desired_cycles:
-        signal_strength_sum += cycle * x
+      # run func "during" cycle
+      signal_sum = during_cycle_func(desired_output, cycle, x, signal_sum)
 
       # addx's second cycle
       cycle += 1
 
-    # check for desired cycle
-    if cycle in desired_cycles:
-      signal_strength_sum += cycle * x
+    # run func "during" cycle
+    signal_sum = during_cycle_func(desired_output, cycle, x, signal_sum)
 
     x = final_x
     cycle += 1  # happens for both noop and addx
 
-  return signal_strength_sum
+  return signal_sum
 
 # Parse input
 instructions_input = read_ascii_file_lines('input.txt')
@@ -56,5 +78,19 @@ part_1_cycles.add(140)
 part_1_cycles.add(180)
 part_1_cycles.add(220)
 
-signal_sum = emulate_cpu(instructions_input, part_1_cycles)
-print(f'Part 1 answer: {signal_sum}')
+part_1_answer = emulate_cpu(
+  instructions_input,
+  part_1_cycles,
+  add_signal_strength)
+print(f'Part 1 answer: {part_1_answer}')
+
+# Part 2
+crt_array = ['.' for _ in range(240)]
+emulate_cpu(instructions_input, crt_array, draw_crt)
+print('Part 2 answer: decipher capital letters below:')
+row_start = 0
+for _ in range(6):
+  crt_slice = crt_array[row_start:row_start+CRT_WIDTH]
+  crt_str = ''.join(crt_slice)
+  print(crt_str)
+  row_start += CRT_WIDTH
