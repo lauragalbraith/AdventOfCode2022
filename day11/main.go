@@ -11,7 +11,6 @@ import (
 	"bufio"
 	"container/list" // https://pkg.go.dev/container/list
 	"fmt"
-	"math/big" // https://pkg.go.dev/math/big
 	"os"
 	"regexp"
 	"strconv"
@@ -40,13 +39,13 @@ func GetLinesFromFile(name string) ([]string, error) {
 	return lines, nil
 }
 
-type Operation func(old *big.Int) (new *big.Int)
+type Operation func(old uint64) (new uint64)
 
 type Monkey struct {
 	id             int
-	items          *list.List
+	reduced_items  *list.List
 	inspect_op     Operation
-	divisible_test *big.Int
+	divisible_test uint64
 	true_dest      int
 	false_dest     int
 
@@ -58,7 +57,7 @@ func (m *Monkey) String() string {
 
 	fmt.Fprintf(&sb, "%d: [", m.id)
 
-	for e := m.items.Front(); e != nil; e = e.Next() {
+	for e := m.reduced_items.Front(); e != nil; e = e.Next() {
 		fmt.Fprintf(&sb, "%+v, ", e.Value)
 	}
 	sb.WriteString("]")
@@ -74,15 +73,10 @@ func (m *Monkey) DeepCopy() *Monkey {
 	new_m := new(Monkey)
 
 	new_m.id = m.id
-	new_m.items = list.New()
-	for e := m.items.Front(); e != nil; e = e.Next() {
-		var original_e *big.Int
-		original_e = e.Value.(*big.Int)
-		if !original_e.IsInt64() {
-			panic(fmt.Errorf("Item value %v inside monkey %d cannot be copied\n", original_e, m.id))
-		}
-
-		new_m.items.PushBack(big.NewInt(original_e.Int64()))
+	new_m.reduced_items = list.New()
+	for e := m.reduced_items.Front(); e != nil; e = e.Next() {
+		original_e := e.Value.(uint64)
+		new_m.reduced_items.PushBack(original_e)
 	}
 	new_m.inspect_op = m.inspect_op
 	new_m.divisible_test = m.divisible_test
@@ -96,7 +90,6 @@ func (m *Monkey) DeepCopy() *Monkey {
 func ParseMonkeysFromInput(lines []string) ([]*Monkey, error) {
 	// Initialize monkeys
 	monkeys := make([]*Monkey, (len(lines)+1)/7)
-	// fmt.Printf("There are %v lines so there are %v monkeys\n", len(lines), len(monkeys))
 
 	operation_line_re := regexp.MustCompile(`^  Operation: new = old (.) (.+)$`)
 	test_line_re := regexp.MustCompile(`^  Test: divisible by (\d+)$`)
@@ -120,7 +113,7 @@ func ParseMonkeysFromInput(lines []string) ([]*Monkey, error) {
 		// get starting items
 		items_str := lines[i][18:]
 		items := strings.Split(items_str, ", ")
-		m.items = list.New()
+		m.reduced_items = list.New()
 		for _, item := range items {
 			num, err := strconv.ParseInt(item, 10, 64)
 			if err != nil {
@@ -128,13 +121,12 @@ func ParseMonkeysFromInput(lines []string) ([]*Monkey, error) {
 				return nil, err
 			}
 
-			m.items.PushBack(big.NewInt(num))
+			m.reduced_items.PushBack(uint64(num))
 		}
 
 		i++
 
 		// get operation
-		// fmt.Printf("DEBUG: line is *%s*\n", lines[i])
 		op_details := operation_line_re.FindAllStringSubmatch(lines[i], -1)
 		if len(op_details[0]) < 3 {
 			fmt.Printf("Unable to extract operation details from line '%s': %+v\n", lines[i], op_details)
@@ -143,7 +135,7 @@ func ParseMonkeysFromInput(lines []string) ([]*Monkey, error) {
 
 		if strings.Compare(op_details[0][1], "*") == 0 {
 			if strings.Compare(op_details[0][2], "old") == 0 {
-				m.inspect_op = func(old *big.Int) (new *big.Int) { return old.Mul(old, old) }
+				m.inspect_op = func(old uint64) (new uint64) { return old * old }
 			} else {
 				literal, err := strconv.ParseInt(op_details[0][2], 10, 64)
 				if err != nil {
@@ -151,7 +143,7 @@ func ParseMonkeysFromInput(lines []string) ([]*Monkey, error) {
 					return nil, err
 				}
 
-				m.inspect_op = func(old *big.Int) (new *big.Int) { return old.Mul(old, big.NewInt(literal)) }
+				m.inspect_op = func(old uint64) (new uint64) { return old * uint64(literal) }
 			}
 		} else {
 			// addition
@@ -161,7 +153,7 @@ func ParseMonkeysFromInput(lines []string) ([]*Monkey, error) {
 				return nil, err
 			}
 
-			m.inspect_op = func(old *big.Int) (new *big.Int) { return old.Add(old, big.NewInt(literal)) }
+			m.inspect_op = func(old uint64) (new uint64) { return old + uint64(literal) }
 		}
 
 		i++
@@ -179,7 +171,7 @@ func ParseMonkeysFromInput(lines []string) ([]*Monkey, error) {
 			return nil, err
 		}
 
-		m.divisible_test = big.NewInt(div_64)
+		m.divisible_test = uint64(div_64)
 
 		i++
 
@@ -215,30 +207,29 @@ func ParseMonkeysFromInput(lines []string) ([]*Monkey, error) {
 
 		// save it to the array
 		monkeys[m.id] = m
-		// fmt.Printf("DEBUG: Have monkey %d: %+v\n", m.id, m)
 	}
 
 	return monkeys, nil
 }
 
 func MonkeyBusiness(monkeys []*Monkey, rounds uint, undamaged_bonus bool) uint64 {
-	// for _, m := range monkeys {
-	// fmt.Printf("DEBUG: monkey %+v has inspected items %d times\n", m, m.inspections_performed)
-	// }
+	// Compute product of all divisors
+	var divisor_product uint64
+	divisor_product = 1
+	for _, m := range monkeys {
+		divisor_product *= m.divisible_test
+	}
 
 	// Emulate monkeys throwing for X rounds
 	var round uint
 	for round = 1; round <= rounds; round++ {
-		if round%100 == 0 {
-			fmt.Printf("Round %d\n", round)
-		}
 		for _, m := range monkeys {
-			num_items := m.items.Len()
+			num_items := m.reduced_items.Len()
 			for i := 0; i < num_items; i++ {
 				// monkey inspects item
-				item := m.items.Front()
-				worry_level := item.Value.(*big.Int)
-				m.items.Remove(item)
+				item := m.reduced_items.Front()
+				worry_level := item.Value.(uint64)
+				m.reduced_items.Remove(item)
 				m.inspections_performed++
 
 				// worry level goes through operation
@@ -246,29 +237,20 @@ func MonkeyBusiness(monkeys []*Monkey, rounds uint, undamaged_bonus bool) uint64
 
 				// monkey gets bored with item; worry level may be divided by 3
 				if undamaged_bonus {
-					worry_level, _ = worry_level.DivMod(worry_level, big.NewInt(3), big.NewInt(0))
+					worry_level /= 3
+				} else {
+					// reduce to remainder after product
+					worry_level %= divisor_product
 				}
 
 				// test worry level against monkey's condition
 				dest_monkey := m.false_dest
-
-				remainder := big.NewInt(0)
-				quotient := big.NewInt(0)
-				quotient, remainder = quotient.DivMod(worry_level, m.divisible_test, remainder)
-				if remainder.IsInt64() && remainder.Int64() == 0 {
+				if worry_level%m.divisible_test == 0 {
 					dest_monkey = m.true_dest
 				}
 
 				// throw item
-				// fmt.Printf("DEBUG: monkey %d throwing item %v to monkey %d\n", m.id, worry_level, dest_monkey)
-				monkeys[dest_monkey].items.PushBack(worry_level)
-			}
-		}
-
-		if round == 1 || round == 20 || round%1000 == 0 {
-			fmt.Printf("DEBUG: after round %d...\n", round)
-			for _, m := range monkeys {
-				fmt.Printf("DEBUG: monkey %+v inspected items %d times\n", m.id, m.inspections_performed)
+				monkeys[dest_monkey].reduced_items.PushBack(worry_level)
 			}
 		}
 	}
@@ -279,7 +261,6 @@ func MonkeyBusiness(monkeys []*Monkey, rounds uint, undamaged_bonus bool) uint64
 	second_most = 0
 
 	for _, m := range monkeys {
-		// fmt.Printf("DEBUG: monkey %d has inspected items %d times\n", m.id, m.inspections_performed)
 		if m.inspections_performed > most {
 			second_most = most
 			most = m.inspections_performed
@@ -294,7 +275,7 @@ func MonkeyBusiness(monkeys []*Monkey, rounds uint, undamaged_bonus bool) uint64
 
 func main() {
 	// Get input from file
-	lines, err := GetLinesFromFile("example_input.txt")
+	lines, err := GetLinesFromFile("input.txt")
 	if err != nil {
 		panic(err)
 	}
@@ -308,17 +289,14 @@ func main() {
 	// worry is divided by 3 each inspection, 20 rounds
 	monkeys := make([]*Monkey, len(initial_monkeys))
 	for i, m := range initial_monkeys {
-		// fmt.Printf("DEBUG: Copying monkey %+v\n", m)
 		monkeys[i] = m.DeepCopy()
 	}
 
 	monkey_business_level := MonkeyBusiness(monkeys, 20, true)
-	fmt.Printf("Part 1 answer: %v\n", monkey_business_level)
+	fmt.Printf("\nPart 1 answer: %v\n\n", monkey_business_level)
 
 	// Part 2
 	// Starting again from the initial state in your puzzle input, what is the level of monkey business after 10000 rounds?
 	monkey_business_level = MonkeyBusiness(initial_monkeys, 10000, false)
-	fmt.Printf("Part 2 answer: %v\n", monkey_business_level) // TODO 26823519255 is too high; round 20 numbers are correct, but rund 1000 is where it starts to differ (all monkeys differ)
-	// TODO NEXT debug ideas: see if any true/false branches are not taken prior to round 21; see if there's list limits that are being hit; see if there are any variables that are changing during emulation that shouldn't be
-	// TODO HERE our int type is too small to hold some of the numbers; numbers are becoming negative
+	fmt.Printf("\nPart 2 answer: %v\n", monkey_business_level)
 }
