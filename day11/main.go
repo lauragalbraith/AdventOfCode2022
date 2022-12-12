@@ -8,36 +8,14 @@ Go 1.19 used
 package main
 
 import (
-	"bufio"
 	"container/list" // https://pkg.go.dev/container/list
 	"fmt"
-	"os"
 	"regexp"
 	"strconv"
 	"strings"
+
+	fileutil "github.com/lauragalbraith/AdventOfCode2022/util/gofileutil" // GetLinesFromFile
 )
-
-func GetLinesFromFile(name string) ([]string, error) {
-	f, err := os.Open(name)
-	if err != nil {
-		fmt.Printf("Error opening file %s: %v\n", name, err)
-		return nil, err
-	}
-	defer f.Close()
-
-	lines := []string{}
-	s := bufio.NewScanner(f)
-	for s.Scan() {
-		lines = append(lines, s.Text())
-	}
-
-	if err := s.Err(); err != nil {
-		fmt.Printf("Error reading file %s: %v\n", name, err)
-		return nil, err
-	}
-
-	return lines, nil
-}
 
 type Operation func(old uint64) (new uint64)
 
@@ -275,7 +253,7 @@ func MonkeyBusiness(monkeys []*Monkey, rounds uint, undamaged_bonus bool) uint64
 
 func main() {
 	// Get input from file
-	lines, err := GetLinesFromFile("input.txt")
+	lines, err := fileutil.GetLinesFromFile("input.txt")
 	if err != nil {
 		panic(err)
 	}

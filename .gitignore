@@ -5,3 +5,7 @@
 
 # Test files, named by convention
 *test*.txt
+
+# Go pkg
+pkg/
+pkg/*
