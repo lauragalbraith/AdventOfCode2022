@@ -72,15 +72,11 @@ func FewestStepsFromSource(heightmap_lines []string, source_row, source_col int,
 
 	// Track the minimum distance to source found
 	path_len := make([][]uint, ROWS)
-	// Keep track of which cell is each cell's predecessor
-	predecessors := make([][]CellToVisit, ROWS)
 	for row, _ := range path_len {
 		path_len[row] = make([]uint, COLS)
-		predecessors[row] = make([]CellToVisit, COLS)
 
 		for col, _ := range path_len[row] {
 			path_len[row][col] = uint(ROWS*COLS + 1)
-			predecessors[row][col] = CellToVisit{row: -1, col: -1}
 		}
 	}
 	path_len[source_row][source_col] = 0
@@ -96,8 +92,6 @@ func FewestStepsFromSource(heightmap_lines []string, source_row, source_col int,
 
 		// make sure current cell has most up-to-date best distance to source
 		curr_cell.dist_from_source = path_len[curr_cell.row][curr_cell.col]
-
-		// fmt.Printf("DEBUG: current cell is [%d,%d], %v from source\n", curr_cell.row, curr_cell.col, curr_cell.dist_from_source)
 
 		// add closer neighbors to the list to be considered
 		curr_height := int(heightmap_lines[curr_cell.row][curr_cell.col])
@@ -116,7 +110,6 @@ func FewestStepsFromSource(heightmap_lines []string, source_row, source_col int,
 			}
 
 			// valid edges: destination cell can be at most one higher than elevation of current cell, and can be as low as you want
-			// fmt.Printf("DEBUG: neighbor %c - current %c = %d; will it continue? %v\n", heightmap_lines[n.row][n.col], heightmap_lines[curr_cell.row][curr_cell.col], int(heightmap_lines[n.row][n.col]-heightmap_lines[curr_cell.row][curr_cell.col]), int(heightmap_lines[n.row][n.col])-int(heightmap_lines[curr_cell.row][curr_cell.col]) > 1)
 			if ascent > 1 {
 				continue
 			}
@@ -126,7 +119,6 @@ func FewestStepsFromSource(heightmap_lines []string, source_row, source_col int,
 			if path_len[n.row][n.col] > n.dist_from_source {
 				// update paths
 				path_len[n.row][n.col] = n.dist_from_source
-				predecessors[n.row][n.col] = curr_cell // TODO FINALLY remove if we never need to reconstruct the path
 
 				// add neighbor to PQ
 				// do not bother removing old value in PQ; it should not amount to anything
@@ -140,7 +132,7 @@ func FewestStepsFromSource(heightmap_lines []string, source_row, source_col int,
 
 func main() {
 	// Get input
-	heightmap_lines, err := fileutil.GetLinesFromFile("example_input.txt")
+	heightmap_lines, err := fileutil.GetLinesFromFile("input.txt")
 	if err != nil {
 		panic(err)
 	}
