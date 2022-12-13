@@ -120,9 +120,21 @@ func FewestStepsFromSToE(heightmap_lines []string) (uint, error) {
 	for len(pq.cells) > 0 {
 		curr_cell := heap.Pop(&pq).(CellToVisit)
 
+		// make sure current cell has most up-to-date best distance to start
+		curr_cell.dist_from_start = path_len[curr_cell.row][curr_cell.col]
+
+		// fmt.Printf("DEBUG: current cell is [%d,%d], %v from start\n", curr_cell.row, curr_cell.col, curr_cell.dist_from_start)
+
 		// check if we've reached the destination
 		if curr_cell.row == end_row && curr_cell.col == end_col {
-			return curr_cell.dist_from_start, nil
+			answer := curr_cell.dist_from_start
+			/*fmt.Print("\nDEBUG: answer path is: ")
+			for curr_cell.row >= 0 {
+				fmt.Printf("[%d,%d]<-", curr_cell.row, curr_cell.col)
+				curr_cell = predecessors[curr_cell.row][curr_cell.col]
+			}
+			fmt.Println()*/
+			return answer, nil
 		}
 
 		// add closer neighbors to the list to be considered
@@ -134,7 +146,8 @@ func FewestStepsFromSToE(heightmap_lines []string) (uint, error) {
 
 			// check visiting this neighbor is possible
 			// valid edges: destination cell can be at most one higher than elevation of current cell, and can be as low as you want
-			if heightmap_lines[n.row][n.col]-heightmap_lines[curr_cell.row][curr_cell.col] > 1 {
+			// fmt.Printf("DEBUG: neighbor %c - current %c = %d; will it continue? %v\n", heightmap_lines[n.row][n.col], heightmap_lines[curr_cell.row][curr_cell.col], int(heightmap_lines[n.row][n.col]-heightmap_lines[curr_cell.row][curr_cell.col]), int(heightmap_lines[n.row][n.col])-int(heightmap_lines[curr_cell.row][curr_cell.col]) > 1)
+			if int(heightmap_lines[n.row][n.col])-int(heightmap_lines[curr_cell.row][curr_cell.col]) > 1 {
 				continue
 			}
 
@@ -157,7 +170,7 @@ func FewestStepsFromSToE(heightmap_lines []string) (uint, error) {
 
 func main() {
 	// Get input
-	heightmap_lines, err := fileutil.GetLinesFromFile("example_input.txt")
+	heightmap_lines, err := fileutil.GetLinesFromFile("input.txt")
 	if err != nil {
 		panic(err)
 	}
