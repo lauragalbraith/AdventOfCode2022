@@ -146,26 +146,26 @@ func Compare(original_left, original_right Value) int {
 	// Match up what types original_left, original_right are
 	switch lv := original_left.(type) {
 	case *ListValue:
-		fmt.Printf("DEBUG: left is list: %v\n", lv)
+		// fmt.Printf("DEBUG: left is list: %v\n", lv)
 		switch rv := original_right.(type) {
 		case *IntegerValue:
-			fmt.Printf("DEBUG: right is int: %v\n", rv)
+			// fmt.Printf("DEBUG: right is int: %v\n", rv)
 			// must convert right to list to compare
 			right_list := new(ListValue)
 			right_list.vals = []Value{rv}
 			right = right_list
 		}
 	case *IntegerValue:
-		fmt.Printf("DEBUG: left is int: %v\n", lv)
+		// fmt.Printf("DEBUG: left is int: %v\n", lv)
 		switch rv := original_right.(type) {
 		case *ListValue:
-			fmt.Printf("DEBUG: right is list: %v\n", rv)
+			// fmt.Printf("DEBUG: right is list: %v\n", rv)
 			// must convert left to list to compare
 			left_list := new(ListValue)
 			left_list.vals = []Value{lv}
 			left = left_list
 		case *IntegerValue:
-			fmt.Printf("DEBUG: right is int: %v\n", rv)
+			// fmt.Printf("DEBUG: right is int: %v\n", rv)
 			// just compare the two ints and return!
 			if lv.val < rv.val {
 				return Correct
@@ -191,14 +191,14 @@ func Compare(original_left, original_right Value) int {
 		result = Compare(l, r)
 	}
 
-	fmt.Printf("DEBUG: comparing %v to %v resulted in %v\n", l, r, result)
+	// fmt.Printf("DEBUG: comparing %v to %v resulted in %v\n", l, r, result)
 
 	return result
 }
 
 func main() {
 	// Get input
-	received_packets, err := fileutil.GetLinesFromFile("example_input.txt")
+	received_packets, err := fileutil.GetLinesFromFile("input.txt")
 	if err != nil {
 		panic(err)
 	}
@@ -229,9 +229,9 @@ func main() {
 		left_value_index := (pair_index - 1) * 2
 		right_value_index := (pair_index-1)*2 + 1
 
-		fmt.Printf("DEBUG: comparing %+v to %+v\n", values[left_value_index], values[right_value_index])
+		// fmt.Printf("DEBUG: comparing %+v to %+v\n", values[left_value_index], values[right_value_index])
 		if Compare(values[left_value_index], values[right_value_index]) == Correct {
-			fmt.Println("DEBUG: Correct order")
+			// fmt.Println("DEBUG: Correct order")
 			correct_order_sum += pair_index
 		}
 	}
