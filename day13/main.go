@@ -9,6 +9,7 @@ package main
 
 import (
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -17,24 +18,39 @@ import (
 
 type Value interface {
 	// initialize the value for starting comparison with another value
-	StartComparison() // TODO FINALLY remove if we don't need it to reset state for Part 2
+	StartComparison()
 	// returns the next value to compare, nil if they have run out
 	Next() Value
+	// returns true if this Value represents a divider packet
+	IsDivider() bool
+	// utility function so sort can swap elements safely
+	DeepCopy() Value
 }
 
 // IntegerValue represents a Value of type Integer
 type IntegerValue struct {
-	val int
+	val        int
+	is_divider bool
 }
 
 func (iv *IntegerValue) StartComparison() {} // do nothing; caller should change type
 func (iv *IntegerValue) Next() Value      { return iv }
-func (iv *IntegerValue) String() string   { return fmt.Sprint(iv.val) }
+func (iv *IntegerValue) IsDivider() bool  { return iv.is_divider }
+func (iv *IntegerValue) DeepCopy() Value {
+	new_iv := new(IntegerValue)
+
+	new_iv.val = iv.val
+	new_iv.is_divider = iv.is_divider
+
+	return new_iv
+}
+func (iv *IntegerValue) String() string { return fmt.Sprint(iv.val) }
 
 // ListValue represents a Value of type List
 type ListValue struct {
 	vals        []Value
 	compare_pos int
+	is_divider  bool
 }
 
 func (lv *ListValue) StartComparison() { lv.compare_pos = 0 }
@@ -46,6 +62,19 @@ func (lv *ListValue) Next() Value {
 	val := lv.vals[lv.compare_pos]
 	lv.compare_pos++
 	return val
+}
+func (lv *ListValue) IsDivider() bool { return lv.is_divider }
+func (lv *ListValue) DeepCopy() Value {
+	new_lv := new(ListValue)
+
+	for _, val := range lv.vals {
+		new_lv.vals = append(new_lv.vals, val.DeepCopy())
+	}
+
+	new_lv.compare_pos = lv.compare_pos
+	new_lv.is_divider = lv.is_divider
+
+	return new_lv
 }
 func (lv *ListValue) String() string {
 	var sb strings.Builder
@@ -67,7 +96,7 @@ func (lv *ListValue) String() string {
 
 // takes a packet in form like "[1,[2,[3,[4,[5,6,7]]]],8,9]"
 // input should always start with '[' and end with ']'
-func ParseListFromPacket(packet string) (*ListValue, error) {
+func ParseListFromPacket(packet string, is_divider bool) (*ListValue, error) {
 	list := new(ListValue)
 
 	for i := 1; i < len(packet)-1; i++ {
@@ -95,7 +124,7 @@ func ParseListFromPacket(packet string) (*ListValue, error) {
 			end_bracket := i
 			// fmt.Printf("DEBUG: inner packet found at %d:%d: *%s*\n", start_bracket, end_bracket, packet[start_bracket:end_bracket+1])
 
-			inner_list, err := ParseListFromPacket(packet[start_bracket : end_bracket+1])
+			inner_list, err := ParseListFromPacket(packet[start_bracket:end_bracket+1], false) // inner lists of divider are not, themselves, a divider
 			if err != nil {
 				return list, err
 			}
@@ -118,6 +147,10 @@ func ParseListFromPacket(packet string) (*ListValue, error) {
 		}
 
 		list.vals = append(list.vals, curr)
+	}
+
+	if is_divider {
+		list.is_divider = true
 	}
 
 	return list, nil
@@ -196,15 +229,26 @@ func Compare(original_left, original_right Value) int {
 	return result
 }
 
+// Define a type that sort can use
+type Packets []Value
+
+func (p Packets) Len() int { return len(p) }
+func (p Packets) Swap(i, j int) {
+	temp := p[i].DeepCopy()
+	p[i] = p[j].DeepCopy()
+	p[j] = temp.DeepCopy()
+}
+func (p Packets) Less(i, j int) bool { return Compare(p[i], p[j]) != Incorrect }
+
 func main() {
 	// Get input
-	received_packets, err := fileutil.GetLinesFromFile("input.txt")
+	received_packets, err := fileutil.GetLinesFromFile("example_input.txt")
 	if err != nil {
 		panic(err)
 	}
 
 	// Parse packets into values
-	var values []*ListValue
+	var values []Value
 	for _, packet := range received_packets {
 		// skip blank lines
 		if len(packet) <= 0 {
@@ -213,7 +257,7 @@ func main() {
 
 		// fmt.Printf("DEBUG: creating packet %d... ", i)
 
-		list_value, err := ParseListFromPacket(packet)
+		list_value, err := ParseListFromPacket(packet, false)
 		if err != nil {
 			panic(err)
 		}
@@ -237,4 +281,33 @@ func main() {
 	}
 
 	fmt.Printf("\nPart 1 answer: %+v\n", correct_order_sum)
+
+	// Part 2
+	// add divider packets into list
+	divider2, err := ParseListFromPacket("[[2]]", true)
+	if err != nil {
+		panic(err)
+	}
+	values = append(values, divider2)
+
+	divider6, err := ParseListFromPacket("[[6]]", true)
+	if err != nil {
+		panic(err)
+	}
+	values = append(values, divider6)
+
+	// sort all of the packets into the correct order, including the dividers
+	sort.Sort(Packets(values))
+
+	// answer is the indeces of the divider packets multiplied together
+	decoder_key := 1
+	for i, packet := range values {
+		if packet.IsDivider() {
+			decoder_key *= i + 1 // 1-indexed number from 0-indexed list
+		}
+	}
+
+	fmt.Printf("\nPart 2 answer: %v\n", decoder_key)
+
+	// TODO FINALLY make sure all references to "right" mean the right side of the comparison, not "correct"
 }
