@@ -15,9 +15,9 @@ import (
 )
 
 type CellToVisit struct {
-	row             int
-	col             int
-	dist_from_start uint
+	row              int
+	col              int
+	dist_from_source uint
 }
 
 func (c *CellToVisit) GetNeighbors() []CellToVisit {
@@ -47,7 +47,7 @@ func (pq *CellPriorityQueue) Len() int {
 // needed for sort.Interface
 func (pq *CellPriorityQueue) Less(i, j int) bool {
 	// return true if i has higher priority than j
-	return pq.cells[i].dist_from_start < pq.cells[j].dist_from_start
+	return pq.cells[i].dist_from_source < pq.cells[j].dist_from_source
 }
 
 // needed for sort.Interface
@@ -66,37 +66,11 @@ func (pq *CellPriorityQueue) Pop() any {
 	return cell_to_return
 }
 
-func FewestStepsFromSToE(heightmap_lines []string) (uint, error) {
+func FewestStepsFromSource(heightmap_lines []string, source_row, source_col int, ascending bool) [][]uint {
 	ROWS := len(heightmap_lines)
 	COLS := len(heightmap_lines[0])
 
-	// Determine start and end cells
-	start_row := -1
-	start_col := -1
-	end_row := -1
-	end_col := -1
-	for r, row := range heightmap_lines {
-		for c, height := range row {
-			// also update start and end cells to what their actual height is
-			// S (at height a) is current position, E (at height z) is best signal location
-			if height == 'S' {
-				start_row, start_col = r, c
-
-				byte_arr := []byte(heightmap_lines[start_row])
-				byte_arr[start_col] = byte('a')
-				heightmap_lines[start_row] = string(byte_arr)
-			}
-			if height == 'E' {
-				end_row, end_col = r, c
-
-				byte_arr := []byte(heightmap_lines[end_row])
-				byte_arr[end_col] = byte('z')
-				heightmap_lines[end_row] = string(byte_arr)
-			}
-		}
-	}
-
-	// Track the minimum distance to start found
+	// Track the minimum distance to source found
 	path_len := make([][]uint, ROWS)
 	// Keep track of which cell is each cell's predecessor
 	predecessors := make([][]CellToVisit, ROWS)
@@ -109,35 +83,25 @@ func FewestStepsFromSToE(heightmap_lines []string) (uint, error) {
 			predecessors[row][col] = CellToVisit{row: -1, col: -1}
 		}
 	}
-	path_len[start_row][start_col] = 0
+	path_len[source_row][source_col] = 0
 
 	// Form a priority queue of cells to try next
 	var pq CellPriorityQueue
 	heap.Init(&pq)
-	heap.Push(&pq, CellToVisit{row: start_row, col: start_col, dist_from_start: 0})
+	heap.Push(&pq, CellToVisit{row: source_row, col: source_col, dist_from_source: 0})
 
-	// Until we reach the destination, keep trying the best cell in the PQ
+	// Until we can no longer improve, keep trying the best cell in the PQ
 	for len(pq.cells) > 0 {
 		curr_cell := heap.Pop(&pq).(CellToVisit)
 
-		// make sure current cell has most up-to-date best distance to start
-		curr_cell.dist_from_start = path_len[curr_cell.row][curr_cell.col]
+		// make sure current cell has most up-to-date best distance to source
+		curr_cell.dist_from_source = path_len[curr_cell.row][curr_cell.col]
 
-		// fmt.Printf("DEBUG: current cell is [%d,%d], %v from start\n", curr_cell.row, curr_cell.col, curr_cell.dist_from_start)
-
-		// check if we've reached the destination
-		if curr_cell.row == end_row && curr_cell.col == end_col {
-			answer := curr_cell.dist_from_start
-			/*fmt.Print("\nDEBUG: answer path is: ")
-			for curr_cell.row >= 0 {
-				fmt.Printf("[%d,%d]<-", curr_cell.row, curr_cell.col)
-				curr_cell = predecessors[curr_cell.row][curr_cell.col]
-			}
-			fmt.Println()*/
-			return answer, nil
-		}
+		// fmt.Printf("DEBUG: current cell is [%d,%d], %v from source\n", curr_cell.row, curr_cell.col, curr_cell.dist_from_source)
 
 		// add closer neighbors to the list to be considered
+		curr_height := int(heightmap_lines[curr_cell.row][curr_cell.col])
+
 		for _, n := range curr_cell.GetNeighbors() {
 			// check valid are bounds
 			if n.row < 0 || n.row >= ROWS || n.col < 0 || n.col >= COLS {
@@ -145,17 +109,23 @@ func FewestStepsFromSToE(heightmap_lines []string) (uint, error) {
 			}
 
 			// check visiting this neighbor is possible
+			n_height := int(heightmap_lines[n.row][n.col])
+			ascent := n_height - curr_height
+			if !ascending {
+				ascent = curr_height - n_height
+			}
+
 			// valid edges: destination cell can be at most one higher than elevation of current cell, and can be as low as you want
 			// fmt.Printf("DEBUG: neighbor %c - current %c = %d; will it continue? %v\n", heightmap_lines[n.row][n.col], heightmap_lines[curr_cell.row][curr_cell.col], int(heightmap_lines[n.row][n.col]-heightmap_lines[curr_cell.row][curr_cell.col]), int(heightmap_lines[n.row][n.col])-int(heightmap_lines[curr_cell.row][curr_cell.col]) > 1)
-			if int(heightmap_lines[n.row][n.col])-int(heightmap_lines[curr_cell.row][curr_cell.col]) > 1 {
+			if ascent > 1 {
 				continue
 			}
 
 			// check if visiting from the current cell is an improvement
-			n.dist_from_start = curr_cell.dist_from_start + 1
-			if path_len[n.row][n.col] > n.dist_from_start {
+			n.dist_from_source = curr_cell.dist_from_source + 1
+			if path_len[n.row][n.col] > n.dist_from_source {
 				// update paths
-				path_len[n.row][n.col] = n.dist_from_start
+				path_len[n.row][n.col] = n.dist_from_source
 				predecessors[n.row][n.col] = curr_cell // TODO FINALLY remove if we never need to reconstruct the path
 
 				// add neighbor to PQ
@@ -165,20 +135,58 @@ func FewestStepsFromSToE(heightmap_lines []string) (uint, error) {
 		}
 	}
 
-	return 0, fmt.Errorf("Could not reach destination")
+	return path_len
 }
 
 func main() {
 	// Get input
-	heightmap_lines, err := fileutil.GetLinesFromFile("input.txt")
+	heightmap_lines, err := fileutil.GetLinesFromFile("example_input.txt")
 	if err != nil {
 		panic(err)
 	}
 
-	steps, err := FewestStepsFromSToE(heightmap_lines)
-	if err != nil {
-		panic(err)
+	// Part 1: What is the fewest steps required to move from your current position to the location that should get the best signal?
+
+	// Save, then overwrite source and end cells
+	var s_row, s_col, e_row, e_col int
+	for r, row := range heightmap_lines {
+		for c, height := range row {
+			// S (at height a) is current position, E (at height z) is best signal location
+			if height == 'S' {
+				s_row, s_col = r, c
+
+				byte_arr := []byte(heightmap_lines[s_row])
+				byte_arr[s_col] = byte('a')
+				heightmap_lines[s_row] = string(byte_arr)
+			}
+			if height == 'E' {
+				e_row, e_col = r, c
+
+				byte_arr := []byte(heightmap_lines[e_row])
+				byte_arr[e_col] = byte('z')
+				heightmap_lines[e_row] = string(byte_arr)
+			}
+		}
 	}
 
-	fmt.Printf("Part 1 answer: %d\n", steps)
+	// Compute all path lengths, treating 'S' as source
+	path_lengths := FewestStepsFromSource(heightmap_lines, s_row, s_col, true)
+
+	// Answer is path length to 'E' cell
+	fmt.Printf("\nPart 1 answer: %d\n", path_lengths[e_row][e_col])
+
+	// Part 2: What is the fewest steps required to move starting from any square with elevation a to the location that should get the best signal?
+	path_lengths = FewestStepsFromSource(heightmap_lines, e_row, e_col, false)
+
+	// find the minimum among all 'a' cells
+	min_path_len := path_lengths[s_row][s_col]
+	for r, row := range heightmap_lines {
+		for c, height := range row {
+			if height == 'a' && path_lengths[r][c] < min_path_len {
+				min_path_len = path_lengths[r][c]
+			}
+		}
+	}
+
+	fmt.Printf("\nPart 2 answer: %d\n", min_path_len)
 }
