@@ -46,7 +46,7 @@ func PrintGrid(grid [][]int) {
 }
 
 func main() {
-	cave_input, err := fileutil.GetLinesFromFile("example_input.txt")
+	cave_input, err := fileutil.GetLinesFromFile("input.txt")
 	if err != nil {
 		panic(err)
 	}
@@ -147,7 +147,7 @@ func main() {
 	// Emulate sand: flows one unit (cell/tile) at a time, comes to rest, and then the next sand is produced
 	still_sand := 0
 	for ; ; still_sand++ {
-		if still_sand < 5 || still_sand >= 22 {
+		if still_sand%10 == 0 {
 			fmt.Printf("DEBUG: %d pieces of still sand\n", still_sand)
 			PrintGrid(grid)
 		}
