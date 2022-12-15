@@ -75,7 +75,7 @@ func ParseInputToSensor(input string) (*Sensor, error) {
 }
 
 func main() {
-	input_file_name := "example_input.txt"
+	input_file_name := "input.txt"
 	input_lines, err := fileutil.GetLinesFromFile(input_file_name)
 	if err != nil {
 		panic(err)
@@ -101,9 +101,46 @@ func main() {
 	// store impossible-beacon spots in a map of y coordinate to maps of x coordinates (to placeholder bools), then count up sizes of maps in O(1); easily expanded to full grid, and can handle negative coordinates
 	no_beacon_spots_y_x := make(map[int64]map[int64]bool)
 
-	// IDEA: if while processing the initial input, we determine if any y=desired point falls in the sensor's impossible area, then we know there's an odd number of applicable cells on y=desired point for this sensor; start at y=... and x=s[x] and then move right to see where the impossible area cuts off (or there's probably a mathematical way to calculate it) - O(s*M)
+	// Calculate the range of the sensor's impossible-area on the desired Y line
+	for _, s := range sensors {
+		// Area covered: 1 or 2 points satisfying equation:
+		// |s.x - x| + |s.y - DESIRED_Y| <= s.md
+		// |s.x - x| +  manhattan_y      <= s.md
+		manhattan_y := s.y - DESIRED_Y
+		if manhattan_y < 0 {
+			manhattan_y *= -1
+		}
 
-	// TODO make sure to subtract any cells from calculated areas that actually contain an input beacon
+		// continuing to evaluate equation:
+		// (x - s.x) + manhattan_y <= s.md OR (s.x - x) + manhattan_y <= s.md
+		// x <= s.md - manhattan_y + s.x OR x >= s.x + manhattan_y - s.md
+		greater_x := s.manhattan_to_closest_beacon - manhattan_y + s.x
+		lesser_x := s.x + manhattan_y - s.manhattan_to_closest_beacon
+
+		// fmt.Printf("DEBUG: sensor at %d,%d covers the desired line from x=%d to x=%d\n", s.x, s.y, lesser_x, greater_x)
+
+		if _, y_in_map := no_beacon_spots_y_x[DESIRED_Y]; !y_in_map {
+			no_beacon_spots_y_x[DESIRED_Y] = make(map[int64]bool)
+		}
+
+		// if lesser_x > greater_x, the equation is not satisfied and this block does nothing
+		for x := lesser_x; x <= greater_x; x++ {
+			no_beacon_spots_y_x[DESIRED_Y][x] = true
+		}
+	}
+
+	// Remove the actual beacons from the result
+	// (do not remove actual sensors, because it is true that a cell containing a sensor cannot contain a beacon)
+	for _, s := range sensors {
+		_, answer_contains_y := no_beacon_spots_y_x[s.beacon_y]
+		if answer_contains_y {
+			// fmt.Printf("DEBUG: size of no_beacon_spots_y_x[%d] BEFORE deletion is %v\n", s.beacon_y, len(no_beacon_spots_y_x[s.beacon_y]))
+
+			delete(no_beacon_spots_y_x[s.beacon_y], s.beacon_x)
+
+			// fmt.Printf("DEBUG: size of no_beacon_spots_y_x[%d] AFTER deletion is %v\n", s.beacon_y, len(no_beacon_spots_y_x[s.beacon_y]))
+		}
+	}
 
 	// IDEA: brute-force: could store the entire map and mark off each impossible area - takes O(s*M^2) time where s is the number of sensors and M is the manhattan distance of each paired sensor-beacon
 	// IDEA: if we just take the desired y value, and try each coordinate against each of the paired sensor-beacons, that's O(COLS*s) where COLS is the max x coordinate from the input
