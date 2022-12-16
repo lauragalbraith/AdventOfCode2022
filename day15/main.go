@@ -10,6 +10,7 @@ package main
 import (
 	"fmt"
 	"regexp"
+	"sort"
 	"strconv"
 
 	fileutil "github.com/lauragalbraith/AdventOfCode2022/util/gofileutil"
@@ -33,42 +34,19 @@ const (
 	TUNING_FREQUENCY_X_MULTIPLIER = 4000000
 )
 
+type Range struct {
+	l, r int64
+}
+
+func (r Range) String() string {
+	return fmt.Sprintf("%d->%d", r.l, r.r)
+}
+
 // NOTE: as shown in example input, beacons and sensors can have negative coordinates
 type Sensor struct {
 	x, y                        int64
 	beacon_x, beacon_y          int64 // data for closest beacon
 	manhattan_to_closest_beacon int64
-	r_top_x, r_top_y            int64
-	r_bottom_x, r_bottom_y      int64
-	r_left_x, r_left_y          int64
-	r_right_x, r_right_y        int64
-}
-
-// Calculate the range of the sensor's impossible-area
-func (s *Sensor) CalculateRhombusArea() { // TODO FINALLY remove this function and variables if I don't end up using them
-	s.r_top_x, s.r_bottom_x = s.x, s.x
-	s.r_left_y, s.r_right_y = s.y, s.y
-
-	s.r_top_y = s.y - s.manhattan_to_closest_beacon
-	s.r_bottom_y = s.y + s.manhattan_to_closest_beacon
-
-	s.r_left_x = s.x - s.manhattan_to_closest_beacon
-	s.r_right_x = s.x + s.manhattan_to_closest_beacon
-}
-
-func (s *Sensor) IsPointInRhombus(x, y int64) bool {
-	// Area covered: |s.x - x| + |s.y - y| <= s.md
-	manhattan_y := s.y - y
-	if manhattan_y < 0 {
-		manhattan_y *= -1
-	}
-
-	manhattan_x := s.x - x
-	if manhattan_x < 0 {
-		manhattan_x *= -1
-	}
-
-	return (manhattan_x + manhattan_y) <= s.manhattan_to_closest_beacon
 }
 
 // returns the beginning and end (inclusive) of the values that this sensor covers on the given y value
@@ -99,7 +77,6 @@ func (s *Sensor) String() string {
 func ParseInputToSensor(input string) (*Sensor, error) {
 	s := new(Sensor)
 
-	// fmt.Printf("DEBUG: line: *%s*\n", input)
 	matches := input_re.FindAllStringSubmatch(input, -1)
 	if len(matches) < 1 || len(matches[0]) < 5 {
 		return nil, fmt.Errorf("unexpected input format: '%s'", input)
@@ -140,9 +117,6 @@ func ParseInputToSensor(input string) (*Sensor, error) {
 
 	s.manhattan_to_closest_beacon = manhattan_x + manhattan_y
 
-	// calculate rhombus
-	s.CalculateRhombusArea()
-
 	return s, nil
 }
 
@@ -164,34 +138,9 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
-
-		// fmt.Printf("DEBUG: created sensor %+v\n", sensors[i])
 	}
 
 	// Part 1: counting the positions where a beacon cannot possibly be along just a single row
-
-	// Store possible beacon coordinates in the bounded range as a possibilities list
-	// TODO remove this implementation that took too much memory
-	/*bounded_possible_beacons_y_x := make(map[int64]map[int64]struct{})
-	var y int64
-	for y = 0; y <= X_Y_LIMIT; y++ {
-		bounded_possible_beacons_y_x[y] = make(map[int64]struct{})
-
-		var x int64
-		for x = 0; x <= X_Y_LIMIT; x++ {
-			bounded_possible_beacons_y_x[y][x] = struct{}{}
-		}
-	}*/
-
-	// Store possible beacon coordinates in a packed bit list
-	// TODO HERE this is still enough memory that my process is just getting killed - could I instead have the cost be in time? iterate over all options? iterate over one y at a time and if its number of ones ever reaches 64, continue on
-	// save some time by having all sensors store a 4-point rhombus of their manhattan distance areas; then have an O(1) function check if a given point is in its rhombus
-	/*known_y_x_coordinates := make([][]uint64, X_Y_LIMIT+1)
-	for row, _ := range known_y_x_coordinates {
-		// will initialize all uint64s to 0000...
-		known_y_x_coordinates[row] = make([]uint64, X_Y_LIMIT/64+1)
-	}*/
-
 	beacon_impossible_on_desired_y := make(map[int64]bool)
 
 	// Calculate the range of the sensor's impossible-area
@@ -214,41 +163,56 @@ func main() {
 		delete(beacon_impossible_on_desired_y, s.beacon_x)
 	}
 
-	// IDEA: brute-force: could store the entire map and mark off each impossible area - takes O(s*M^2) time where s is the number of sensors and M is the manhattan distance of each paired sensor-beacon
-	// IDEA: if we just take the desired y value, and try each coordinate against each of the paired sensor-beacons, that's O(COLS*s) where COLS is the max x coordinate from the input
-
 	fmt.Printf("\nPart 1 answer: %v\n", len(beacon_impossible_on_desired_y))
 
 	// Part 2: Find the only possible position for the distress beacon
-	// TODO consider having the maps contain the full grid initially, then get erased over time
-	// TODO consider using big.Int for the tuning frequency, if my initial number goes negative, but since int64 can store almost all 19 digits, 4*10^6 squared should fit within that
+	// For each y value, go over all ranges covered by the sensors on that row to find any gaps of 1
 
-	var x, y int64
+	var y, x int64
 Y_Loop:
 	for y = 0; y <= X_Y_LIMIT; y++ {
-		if y%1000 == 0 {
-			fmt.Printf("DEBUG: processing y=%d\n", y)
+		// collect all covered ranges of this y value
+		var covered []Range
+		for _, s := range sensors {
+			lesser_x, greater_x := s.CoveredRange(y)
+			if lesser_x <= greater_x {
+				covered = append(covered, Range{l: lesser_x, r: greater_x})
+			}
 		}
-	X_Loop:
-		for x = 0; x <= X_Y_LIMIT; x++ {
-		Sensor_Loop:
-			for _, s := range sensors {
-				// skip sensor if it definitely doesn't intersect this point
-				if y < s.r_top_y || y > s.r_bottom_y || x < s.r_left_x || x > s.r_right_x {
-					continue Sensor_Loop
-				}
 
-				// skip coordinate if it's covered by this sensor
-				if s.IsPointInRhombus(x, y) {
-					continue X_Loop
-				}
+		// sort said ranges so we can look from left to right
+		sort.Slice(covered, func(i, j int) bool {
+			if covered[i].l == covered[j].l {
+				return covered[i].r < covered[j].r
+			}
+			return covered[i].l < covered[j].l
+		})
+
+		// determine if there's any gaps at the left edge of the grid
+		if covered[0].l > 0 {
+			x = 0
+			break Y_Loop
+		}
+
+		// try to find the gap in the middle
+		max_covered_x := covered[0].r
+		for _, r := range covered[1:] {
+			x = max_covered_x + 1
+			if r.l > x {
+				break Y_Loop
 			}
 
-			// break out of everything if we've found the answer
+			if r.r > max_covered_x {
+				max_covered_x = r.r
+			}
+		}
+
+		// try to find a gap at the right edge
+		if max_covered_x < X_Y_LIMIT {
+			x = X_Y_LIMIT
 			break Y_Loop
 		}
 	}
 
-	// TODO NEXT if this is too slow, try calling CoveredRange and filling in a per-row map of size 400000 to check if it ends up being size 400000 or if not what the missing number is
 	fmt.Printf("\nPart 2 answer: %v\n", x*TUNING_FREQUENCY_X_MULTIPLIER+y)
 }
