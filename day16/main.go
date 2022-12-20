@@ -333,72 +333,162 @@ func Part1DijkstraToPermutedPathMethod(graph map[string]*Valve) int {
 
 // Performs DFS on the transformed graph of valves with nonzero flow rate (and AA) as nodes and shortest path between them as edges
 // Returns the maximum pressure that can be released from this path
+// TODO if this is too slow, we could add back in the check logic for cutting off a path if it's not going to reach the maximum, but all these paths are better paths now, so I won't bother for this first iteration
 func DFSValuableValveDistance(
 	valve_tunnel_graph map[string]*Valve,
 	valuable_valve_distance_graph map[string]map[string]int,
 	visited map[string]bool,
-	minute int,
-	valve string,
+	minutes []int,
+	valves []string,
 	pressure_released int,
-	open_flow_rate int) int {
-	// Mark this node as visited
-	visited[valve] = true
+	open_flow_rates []int) int {
+
+	/*fmt.Printf("DEBUG: ")
+	for i := range valves {
+		fmt.Printf("%vm: at %s having total flow rate %v; ", minutes[i], valves[i], open_flow_rates[i])
+	}
+	fmt.Printf("released %v so far\n", pressure_released)*/
 
 	// If this valve adds value to be opened, open it
-	if valve_tunnel_graph[valve].flow_rate > 0 {
-		pressure_released += open_flow_rate
-		minute++
-		// fmt.Printf("DEBUG: %vm: valve %s is now open\n", minute, valve)
-		open_flow_rate += valve_tunnel_graph[valve].flow_rate
+	for i, valve := range valves {
+		if valve_tunnel_graph[valve].flow_rate > 0 {
+			pressure_released += open_flow_rates[i]
+			minutes[i]++
+			// fmt.Printf("DEBUG: i=%d: %vm: valve %s is now open and pressure_released is %v\n", i, minutes[i], valves[i], pressure_released)
+			open_flow_rates[i] += valve_tunnel_graph[valve].flow_rate
+		}
 	}
 
 	// note: the opening should not bring us to the end of our time; we check that before visiting
 
-	// TODO if this is too slow, we could add back in the check logic for cutting off a path if it's not going to reach the maximum, but all these paths are better paths now, so I won't bother for this first iteration
-
 	// If we didn't visit any more neighbors, set the bar for max at just accumulating pressure from existing open rates
-	max_released := pressure_released + (TIME_ALLOTTED-minute+1)*open_flow_rate
+	max_released := pressure_released
+	for i, flow := range open_flow_rates {
+		max_released += (TIME_ALLOTTED - minutes[i] + 1) * flow
+	}
 
 	// Try visiting each unvisited neighbor to continue the path
-	for n, path_len := range valuable_valve_distance_graph[valve] {
+	for n_0, path_len_0 := range valuable_valve_distance_graph[valves[0]] { // human
+		/*if strings.Compare(valves[0], START_VALVE) == 0 {
+			fmt.Printf("DEBUG: minute is %v, valve is %v, flow rate is %v, pressure released is %v\n", minutes[0], valves[0], open_flow_rates[0], pressure_released)
+		}*/
+
 		// do not visit if we've already visited this valve (i.e. opened it)
-		if has_been_visited, in_map := visited[n]; in_map && has_been_visited {
+		if has_been_visited, in_map := visited[n_0]; in_map && has_been_visited {
 			continue
 		}
 
 		// do not bother to visit if we would run out of time by going there and opening its valve
-		if minute+path_len+1 > TIME_ALLOTTED {
+		if minutes[0]+path_len_0+1 > TIME_ALLOTTED {
 			continue
 		}
 
-		// Check if the maximum pressure can be released down this path
-		max_pressure_with_n := DFSValuableValveDistance(
-			valve_tunnel_graph,
-			valuable_valve_distance_graph,
-			visited,
-			minute+path_len,
-			n,
-			pressure_released+path_len*open_flow_rate,
-			open_flow_rate)
+		// Mark neighbor as visited before we call it
+		visited[n_0] = true
 
-		if max_pressure_with_n > max_released {
-			max_released = max_pressure_with_n
+		// NOTE: since we are using slices instead of plain ints, they are passed by reference, and we must make copies of the data to pass so we are not updated
+		n_minutes := []int{minutes[0] + path_len_0}
+		n_valves := []string{n_0}
+		n_flow_rates := []int{open_flow_rates[0]}
+		n_pressure_released := pressure_released + (path_len_0 * open_flow_rates[0])
+
+		for n_1, path_len_1 := range valuable_valve_distance_graph[valves[len(valves)-1]] { // elephant
+			// do not visit if we've already visited this valve (i.e. opened it)
+			if has_been_visited, in_map := visited[n_1]; in_map && has_been_visited && len(valves) > 1 {
+				continue
+			}
+
+			// do not bother to visit if we would run out of time by going there and opening its valve
+			if len(valves) > 1 && minutes[1]+path_len_1+1 > TIME_ALLOTTED {
+				continue
+			}
+
+			// Add on parameters if we have the elephant
+			if len(valves) > 1 {
+				// resize
+				if len(n_minutes) == 1 {
+					n_minutes = append(n_minutes, 0)
+					n_valves = append(n_valves, "")
+					n_flow_rates = append(n_flow_rates, 0)
+				}
+
+				// set parameters
+				n_minutes[1] = minutes[1] + path_len_1
+				n_valves[1] = n_1
+				n_flow_rates[1] = open_flow_rates[1]
+
+				n_pressure_released = pressure_released + (path_len_0 * open_flow_rates[0]) + (path_len_1 * open_flow_rates[1])
+
+				// Mark neighbor as visited before we call it
+				visited[n_1] = true
+			}
+
+			// Check if the maximum pressure can be released down this path
+			max_pressure_with_n := DFSValuableValveDistance(
+				valve_tunnel_graph,
+				valuable_valve_distance_graph,
+				visited,
+				n_minutes,
+				n_valves,
+				n_pressure_released,
+				n_flow_rates)
+
+			if max_pressure_with_n > max_released {
+				max_released = max_pressure_with_n
+			}
+
+			// If we're dealing with a human only, treat this as a temporary block
+			if len(valves) < 2 {
+				break
+			}
+
+			// Backtrack: unmark neighbor as visited
+			visited[n_1] = false
 		}
+
+		// Since one creature can stay stil at a juncture longer than another creature, see if that would result in a max
+		if len(valves) > 1 && len(n_valves) == 1 {
+			// elephant is helping but did not get to move
+			// since creatures are interchangeable, human not moving but elephant being able to move on the same valves will only be counted once here (and skipped past when the places are flipped)
+
+			// resize
+			n_minutes = append(n_minutes, 0)
+			n_valves = append(n_valves, "")
+			n_flow_rates = append(n_flow_rates, 0)
+
+			// set parameters to stay in one place whose valve cannot be opened
+			n_minutes[1] = minutes[1]
+			n_valves[1] = START_VALVE
+			n_flow_rates[1] = open_flow_rates[1]
+			// n_pressure_released is not affected here
+
+			// Check if the maximum pressure can be released by moving human but not elephant
+			max_pressure_with_n := DFSValuableValveDistance(
+				valve_tunnel_graph,
+				valuable_valve_distance_graph,
+				visited,
+				n_minutes,
+				n_valves,
+				n_pressure_released,
+				n_flow_rates)
+
+			if max_pressure_with_n > max_released {
+				max_released = max_pressure_with_n
+			}
+		}
+
+		// Backtrack: unmark neighbor as visited
+		visited[n_0] = false
 	}
 
-	// Backtrack:
-	// Unmark this node as visited
-	visited[valve] = false
-
-	// fmt.Printf("DEBUG: down %s's path, %v is the maximum pressure released\n", valve, max_released)
-
+	// fmt.Printf("DEBUG: down %s's path, %v is the maximum pressure released\n\n", valves[0], max_released)
 	return max_released
 }
 
 func main() {
 	// valve flow units: pressure per minute in open state
 	// tunnels between valve
-	input_lines, err := fileutil.GetLinesFromFile("example_input.txt") // TODO NEXT run main input
+	input_lines, err := fileutil.GetLinesFromFile("input.txt") // TODO NEXT run main input
 	if err != nil {
 		panic(err)
 	}
@@ -439,14 +529,16 @@ func main() {
 	}
 
 	// Perform a DFS on the transformed graph to find the path resulting in the maximum released pressure
+	visited := make(map[string]bool)
+	visited[START_VALVE] = true
 	max_released_pressure := DFSValuableValveDistance(
 		valve_tunnel_graph,
 		valuable_valve_distance_graph,
-		make(map[string]bool),
-		1,
-		START_VALVE,
+		visited,
+		[]int{1},
+		[]string{START_VALVE},
 		0,
-		0)
+		[]int{0})
 
 	// NOTE no negative flow rates in either input
 	// NOTE: all flow rates are unique and <30 so it would be really easy to track which flows we had already taken in an array, but they're not all primes, so we couldn't just factor the 30-minute value so far
@@ -471,6 +563,20 @@ func main() {
 
 	// IDEA preprocess by creating a Dijkstra's dist value for every valve starting at every other valve, so we now know the min number of steps to take to get from any valve to any other valve; then start at time zero/every valve and work backwards (if a path can't reach AA by time 30, the path is impossible), but we still don't have a heuristic/way of knowing for sure which valve is best to take next, so we'd have to try all options, and this approach is just improving time to calculate time decrementing
 
-	// TODO HERE
+	// TODO HERE remember to have start times = 5 instead of 1
 	fmt.Printf("\nPart 2 answer: %v\n", max_released_pressure)
+
+	/*
+		IDEAS:
+		- use sync/barriers
+		- send elephant/human to different valves every time
+		- use shared actions array or opened_valves map
+		- arbitrarily always have human go first during each minute, then have elephant check to make sure it's not duplicating human's work
+		- O(n^2) complexity inside neighbor's visiting, choosing human and elephant next choice
+		- mark valves as visited as soon as we decide to move to them, not in function call
+		- separate open_flow_rates so each can add it up for their own elapsed minutes
+
+		Algorithms and runtimes:
+		- zip together human and elephant DFS, i.e. have a single DFS call represent a single decision-making point along a single universe timeline (rather than a single decision-making point along a single physical path) where both the human and the elephant make a non-overlapping decision about where to go next; O(V*E^2)
+	*/
 }
