@@ -492,7 +492,7 @@ func DFSValuableValveDistance(
 func main() {
 	// valve flow units: pressure per minute in open state
 	// tunnels between valve
-	input_lines, err := fileutil.GetLinesFromFile("example_input.txt") // TODO NEXT run main input
+	input_lines, err := fileutil.GetLinesFromFile("input.txt") // TODO NEXT run main input
 	if err != nil {
 		panic(err)
 	}
