@@ -86,7 +86,7 @@ func get_tallest_rock_row(tiles [][]byte) int {
 
 func main() {
 	// Parse input
-	input_lines, err := fileutil.GetLinesFromFile("example_input.txt")
+	input_lines, err := fileutil.GetLinesFromFile("input.txt")
 	if err != nil {
 		panic(err)
 	}
@@ -180,7 +180,7 @@ func main() {
 
 			// if fall fails, store in tiles and move onto next rock
 			if fall_impeded {
-				fmt.Printf("DEBUG: rock %d comes to a rest at row:%d,col:%d\n", i, rock_row, rock_col)
+				// fmt.Printf("DEBUG: rock %d comes to a rest at row:%d,col:%d\n", i, rock_row, rock_col)
 
 				// allocate new rows in tiles if needed
 				for rock_row+len(ROCKS[rock_type_i])-1 >= len(tiles) {
