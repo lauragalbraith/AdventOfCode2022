@@ -354,8 +354,8 @@ func DFSValuableValveDistance(
 		if valve_tunnel_graph[valve].flow_rate > 0 {
 			pressure_released += open_flow_rates[i]
 			minutes[i]++
-			// fmt.Printf("DEBUG: i=%d: %vm: valve %s is now open and pressure_released is %v\n", i, minutes[i], valves[i], pressure_released)
 			open_flow_rates[i] += valve_tunnel_graph[valve].flow_rate
+			// fmt.Printf("DEBUG: i=%d: %vm: valve %s is now open (new total flow %v) and pressure_released is %v\n", i, minutes[i], valves[i], open_flow_rates[i], pressure_released)
 		}
 	}
 
@@ -365,7 +365,9 @@ func DFSValuableValveDistance(
 	max_released := pressure_released
 	for i, flow := range open_flow_rates {
 		max_released += (TIME_ALLOTTED - minutes[i] + 1) * flow
+		// fmt.Printf("DEBUG: i=%d: there's %v minutes left to gather flow %v\n", i, (TIME_ALLOTTED - minutes[i] + 1), flow)
 	}
+	// fmt.Printf("DEBUG: floor for max_released is %v\n", max_released)
 
 	// Try visiting each unvisited neighbor to continue the path
 	for n_0, path_len_0 := range valuable_valve_distance_graph[valves[0]] { // human
@@ -405,17 +407,10 @@ func DFSValuableValveDistance(
 
 			// Add on parameters if we have the elephant
 			if len(valves) > 1 {
-				// resize
-				if len(n_minutes) == 1 {
-					n_minutes = append(n_minutes, 0)
-					n_valves = append(n_valves, "")
-					n_flow_rates = append(n_flow_rates, 0)
-				}
-
-				// set parameters
-				n_minutes[1] = minutes[1] + path_len_1
-				n_valves[1] = n_1
-				n_flow_rates[1] = open_flow_rates[1]
+				// create new slices without referencing the old ones so outer loop values are not overwritten by callee
+				n_minutes = []int{minutes[0] + path_len_0, minutes[1] + path_len_1}
+				n_valves = []string{n_0, n_1}
+				n_flow_rates = []int{open_flow_rates[0], open_flow_rates[1]}
 
 				n_pressure_released = pressure_released + (path_len_0 * open_flow_rates[0]) + (path_len_1 * open_flow_rates[1])
 
@@ -449,6 +444,7 @@ func DFSValuableValveDistance(
 		// Since one creature can stay stil at a juncture longer than another creature, see if that would result in a max
 		if len(valves) > 1 && len(n_valves) == 1 {
 			// elephant is helping but did not get to move
+			// fmt.Printf("DEBUG: elephant is helping, but did not get to move with human neighbor %s\n", n_0)
 			// since creatures are interchangeable, human not moving but elephant being able to move on the same valves will only be counted once here (and skipped past when the places are flipped)
 
 			// resize
@@ -457,10 +453,10 @@ func DFSValuableValveDistance(
 			n_flow_rates = append(n_flow_rates, 0)
 
 			// set parameters to stay in one place whose valve cannot be opened
-			n_minutes[1] = minutes[1]
+			n_minutes[1] = minutes[1] // TODO NEXT since we're just setting them only once, here not in a loop, just set them up on the append line
 			n_valves[1] = START_VALVE
 			n_flow_rates[1] = open_flow_rates[1]
-			// n_pressure_released is not affected here
+			// n_pressure_released = pressure_released + (path_len_0 * open_flow_rates[0]) // stays the same from before
 
 			// Check if the maximum pressure can be released by moving human but not elephant
 			max_pressure_with_n := DFSValuableValveDistance(
@@ -481,14 +477,22 @@ func DFSValuableValveDistance(
 		visited[n_0] = false
 	}
 
-	// fmt.Printf("DEBUG: down %s's path, %v is the maximum pressure released\n\n", valves[0], max_released)
+	/*for i := range valves {
+		fmt.Printf("DEBUG: after all visiting i=%d: %vm: at valve %s (total flow %v) and pressure_released is %v\n", i, minutes[i], valves[i], open_flow_rates[i], pressure_released)
+	}
+
+	fmt.Print("DEBUG: down path ")
+	for _, valve := range valves {
+		fmt.Printf("with valve=%s ", valve)
+	}
+	fmt.Printf("%v is the maximum pressure released\n\n", max_released)*/
 	return max_released
 }
 
 func main() {
 	// valve flow units: pressure per minute in open state
 	// tunnels between valve
-	input_lines, err := fileutil.GetLinesFromFile("input.txt") // TODO NEXT run main input
+	input_lines, err := fileutil.GetLinesFromFile("example_input.txt") // TODO NEXT run main input
 	if err != nil {
 		panic(err)
 	}
@@ -563,7 +567,20 @@ func main() {
 
 	// IDEA preprocess by creating a Dijkstra's dist value for every valve starting at every other valve, so we now know the min number of steps to take to get from any valve to any other valve; then start at time zero/every valve and work backwards (if a path can't reach AA by time 30, the path is impossible), but we still don't have a heuristic/way of knowing for sure which valve is best to take next, so we'd have to try all options, and this approach is just improving time to calculate time decrementing
 
-	// TODO HERE remember to have start times = 5 instead of 1
+	// Reset visited status for Part 2
+	visited = make(map[string]bool)
+	visited[START_VALVE] = true
+
+	// Run DFS for both a human and elephant, starting later and both at AA
+	max_released_pressure = DFSValuableValveDistance(
+		valve_tunnel_graph,
+		valuable_valve_distance_graph,
+		visited,
+		[]int{5, 5},
+		[]string{START_VALVE, START_VALVE},
+		0,
+		[]int{0, 0})
+
 	fmt.Printf("\nPart 2 answer: %v\n", max_released_pressure)
 
 	/*
