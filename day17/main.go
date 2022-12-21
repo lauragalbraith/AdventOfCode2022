@@ -19,7 +19,9 @@ func main() {
 		panic(err)
 	}
 
+	jet_pattern := input_lines[0]
+
 	// TODO solve day 17
 
-	fmt.Printf("\nPart 1 answer: %v\n", len(input_lines))
+	fmt.Printf("\nPart 1 answer: %v\n", len(jet_pattern))
 }
