@@ -27,6 +27,7 @@ const (
 	AIRE = '.'
 )
 
+// From problem description
 var (
 	ROCKS = [][][]byte{
 		{
@@ -58,6 +59,12 @@ var (
 	JET_DIRECTIONS = map[byte]int{'>': 1, '<': -1}
 )
 
+// Constants for hashing chamber state
+const (
+	// TODO increase this number if I'm not getting an accurate match thru hash for repeating chamber states
+	ROWS_TO_HASH = 5 // inspired by solution from Reddit: https://github.com/vss2sn/advent_of_code/blob/master/2022/cpp/day_17b.cpp
+)
+
 // returns the row, column of where a single tile of the rock is
 func get_rock_tile_indeces(
 	sw_corner_row, sw_corner_col int,
@@ -73,10 +80,10 @@ func get_rock_tile_indeces(
 // returns -1 if there are no rocks
 func get_tallest_rock_row(tiles [][]byte) int {
 	// look at the topmost row, continuing down until we see a rock
-	for row := len(tiles) - 1; row >= 0; row-- {
+	for tiles_row := len(tiles) - 1; tiles_row >= 0; tiles_row-- {
 		for col := 0; col < COLS; col++ {
-			if tiles[row][col] == ROCK {
-				return row
+			if tiles[tiles_row][col] == ROCK {
+				return tiles_row
 			}
 		}
 	}
@@ -84,14 +91,35 @@ func get_tallest_rock_row(tiles [][]byte) int {
 	return -1
 }
 
-func main() {
-	// Parse input
-	input_lines, err := fileutil.GetLinesFromFile("input.txt")
-	if err != nil {
-		panic(err)
+// in Go, I'm not sure there's a way to do native hashing for a type (like size_t operator() in C++); could just create an INT out of hashing together the occupied tiles in the top R rows
+func hash_chamber_top(tiles [][]byte) uint64 {
+	var hash uint64 // Go initializes to 0
+
+	for i := 0; i < ROWS_TO_HASH; i++ {
+		row := get_tallest_rock_row(tiles) - i
+		if get_tallest_rock_row(tiles) < ROWS_TO_HASH-1 {
+			row = ROWS_TO_HASH - 1 - i
+		}
+		for col := 0; col < COLS; col++ {
+			var val uint64 // Go initializes to 0
+			// fmt.Printf("DEBUG: tiles has len %v and the row in question is %v\n", len(tiles), row)
+			if row < len(tiles) && tiles[row][col] == ROCK {
+				val = 1
+			}
+
+			// it's a row of bytes uniquely representing the state; NOTE: only works if ROWS_TO_HASH*COLS <= 64
+			hash = (hash << 1) + val
+			// hash += val * (i*COLS + col) // TODO if needed for correctness, alternative hashing idea
+		}
 	}
 
-	jet_pattern := input_lines[0]
+	return hash
+}
+
+// returns the height of the tallest rock tower after x many rocks have fallen
+func TallestTowerHeightAfterXFalls(
+	x int64,
+	jet_pattern string) int64 {
 
 	// Initialize falling state
 	jet_i := 0
@@ -106,8 +134,14 @@ func main() {
 		}
 	}
 
-	// How many units tall will the tower of rocks be after 2022 rocks have stopped falling?
-	for i := 1; i <= 2022; i, rock_type_i = i+1, (rock_type_i+1)%len(ROCKS) {
+	// Store hashed state of the upper (most relevant) chamber to detect repeated states (stable cycle)
+	seen_jet_type_chamber_heights := make(map[int]map[int]map[uint64][]int64)
+	var check_cycle_after_rocks int64
+	check_cycle_after_rocks = -1
+
+	// Simulate X rock falls
+	var i int64
+	for i = 1; i <= x; i, rock_type_i = i+1, (rock_type_i+1)%len(ROCKS) {
 		// Determine starting position of lower-left corner of rock
 		rock_row := get_tallest_rock_row(tiles) + ROCK_START_ROW_BUFFER + 1
 		rock_col := ROCK_START_COL_BUFFER
@@ -178,51 +212,138 @@ func main() {
 				}
 			}
 
-			// if fall fails, store in tiles and move onto next rock
-			if fall_impeded {
-				// fmt.Printf("DEBUG: rock %d comes to a rest at row:%d,col:%d\n", i, rock_row, rock_col)
-
-				// allocate new rows in tiles if needed
-				for rock_row+len(ROCKS[rock_type_i])-1 >= len(tiles) {
-					tiles = append(tiles, make([]byte, COLS))
-					for col := 0; col < COLS; col++ {
-						tiles[len(tiles)-1][col] = AIRE
-					}
-				}
-
-				// store all of this rock's tiles in tiles
-				for i := range ROCKS[rock_type_i] {
-					for j, tile := range ROCKS[rock_type_i][i] {
-						if tile == AIRE {
-							continue
-						}
-
-						tile_row, tile_col := get_rock_tile_indeces(rock_row, rock_col, rock_type_i, i, j)
-						tiles[tile_row][tile_col] = ROCK
-					}
-				}
-
-				// handle new rock
-				break
-			} else {
+			if !fall_impeded {
 				rock_row -= 1
 				// fmt.Printf("DEBUG: rock %d is now at row:%d,col:%d\n", i, rock_row, rock_col)
+				continue
 			}
+
+			// if fall fails, note state and move onto next rock
+			// fmt.Printf("DEBUG: rock %d comes to a rest at row:%d,col:%d\n", i, rock_row, rock_col)
+
+			// allocate new rows in tiles if needed
+			for int(rock_row)+len(ROCKS[rock_type_i])-1 >= len(tiles) {
+				tiles = append(tiles, make([]byte, COLS))
+				for col := 0; col < COLS; col++ {
+					tiles[len(tiles)-1][col] = AIRE
+				}
+			}
+
+			// store all of this rock's tiles in tiles
+			for i := range ROCKS[rock_type_i] {
+				for j, tile := range ROCKS[rock_type_i][i] {
+					if tile == AIRE {
+						continue
+					}
+
+					tile_row, tile_col := get_rock_tile_indeces(rock_row, rock_col, rock_type_i, i, j)
+					tiles[tile_row][tile_col] = ROCK
+				}
+			}
+
+			// Store hashed state of the upper (most relevant) chamber
+
+			// technically this is the jet to affect the next state, but it should be same difference
+			if _, jet_seen := seen_jet_type_chamber_heights[jet_i]; !jet_seen {
+				seen_jet_type_chamber_heights[jet_i] = make(map[int]map[uint64][]int64)
+				fmt.Printf("DEBUG: jet_i %v created in map\n", jet_i)
+			}
+
+			if _, rock_type_seen := seen_jet_type_chamber_heights[jet_i][rock_type_i]; !rock_type_seen {
+				seen_jet_type_chamber_heights[jet_i][rock_type_i] = make(map[uint64][]int64)
+				fmt.Printf("DEBUG: rock_type_i %v created in map\n", rock_type_i)
+			}
+
+			// Check if hashed state has been seen before, where we can immediately calculate and return result
+			chamber_hash := hash_chamber_top(tiles)
+			current_tallest_rock_row := int64(get_tallest_rock_row(tiles))
+			previous_state, state_seen := seen_jet_type_chamber_heights[jet_i][rock_type_i][chamber_hash]
+
+			if state_seen && check_cycle_after_rocks < 0 {
+				fmt.Printf("DEBUG: state of jet_i %v, rock_type_i %v is the possible start of a cycle, but we're checking it (tallest %v, rock_i %v)\n", jet_i, rock_type_i, previous_state[0], previous_state[1])
+
+				cycle_length := i - previous_state[1]
+				check_cycle_after_rocks = i + cycle_length
+			} else if state_seen && i > check_cycle_after_rocks {
+				fmt.Printf("DEBUG: state of jet_i %v, rock_type_i %v inner map that we have apparently seen before is...", jet_i, rock_type_i)
+				for hash, info := range seen_jet_type_chamber_heights[jet_i][rock_type_i] {
+					fmt.Printf("DEBUG: hash %064b with tallest at %v and rock count %v\n", hash, info[0], info[1])
+				}
+				fmt.Println()
+
+				fmt.Printf("DEBUG: this state (tallest at row %v) has been seen before, when the tallest rock was at row %v with %v rocks\n", current_tallest_rock_row, previous_state[0], previous_state[1])
+
+				// Extrapolate pattern at x rocks by this result
+				cycle_length := i - previous_state[1]
+				complete_cycles_to_go := (x - i) / cycle_length
+				growth_during_cycle := current_tallest_rock_row - previous_state[0]
+
+				fmt.Printf("DEBUG: complete cycle has length %v; this is the %vth rock, and we want %v rocks, so we've got %v cycles to go which each increase height by %v\n", cycle_length, i, x, complete_cycles_to_go, growth_during_cycle)
+
+				// TODO it may take a while to find the rock count matching this, because we have a lot of maps to iterate through; if its slow, consider restructuring hashing scheme into a single map
+				partial_cycle_size_to_go := (x - i) % cycle_length
+
+				fmt.Printf("DEBUG: beyond the complete cycles, we need to go an additional %v rocks, so we need to find the state stored at %v rocks\n", partial_cycle_size_to_go, previous_state[1]+partial_cycle_size_to_go)
+
+				// find how much growth occurs during this partial cycle
+				for _, jet_info := range seen_jet_type_chamber_heights {
+					for _, type_info := range jet_info {
+						for _, state_info := range type_info {
+							if state_info[1] == previous_state[1]+partial_cycle_size_to_go {
+								growth_during_partial_cycle := state_info[0] - previous_state[0]
+								// TODO HERE fix for full input in Part 1; it's currently saying 3048 instead of 3069
+								// maybe since it's got less than a full cycle to go it's not accurate? but this means that part 2 may be wrong (I'm testing part 2 with example text to see)
+								// TODO IDEA make it so that we have to find a seen state in a map of size > 1 OR it's got to be the second or third time we've seen the friggin cycle to double-check it
+								fmt.Printf("DEBUG: found it! the partial state grew in height by %v\n", growth_during_partial_cycle)
+
+								// The height of the tower will be 1 greater than the row of the extrapolated tallest rock
+								return current_tallest_rock_row + (complete_cycles_to_go * growth_during_cycle) + growth_during_partial_cycle + 1
+							}
+						}
+					}
+				}
+			}
+
+			// save this state
+			seen_jet_type_chamber_heights[jet_i][rock_type_i][chamber_hash] = []int64{current_tallest_rock_row, i}
+
+			// Handle new rock
+			break
 		}
 	}
+
+	// Determine final tallest rock if we never encountered a cycle
+	return int64(get_tallest_rock_row(tiles) + 1)
 
 	/*
 		IDEAS:
 		- "fall" upward (to smaller row values)
 		- answer will be the value I need to save for the rock falls anyway: the highest rock in the room
+		- once a row has rocks at every column value, it can be treated as floor, and storage can be saved as long as you store the additional depth removed
+		- is there a condition for each column that can be taken to mean the same thing as a full column? i.e. if a rock has come to rest with its rock_col equal to Z for Z=0...6 and its rock_row equal to Y, then can row Y and below be assumed the floor? could we only watch that for the tall skinny rock type?
 
 		Algorithms and time/space used:
 		- store all rows and columns, adding new rows as needed
 			- O(7*2022) space
 		- for each column value, store the highest row that is occupied by a rock/floor
 			- O(7) space
+		- as seen on Reddit: look for repeating state cycle and return when that is found (if you have the same top R rows, and at the same point in the jet pattern, and at the same rock, that means you'll reach here again) - set R to be 5 like C++ solution, but increase it if I'm not getting the right answer
+			- in Go, not sure how to do native hashing; could just create an INT out of hashing together the occupied tiles in the top R rows
 	*/
+}
 
-	// Determine final tallest rock
-	fmt.Printf("\nPart 1 answer: %v\n", get_tallest_rock_row(tiles)+1)
+func main() {
+	// Parse input
+	input_lines, err := fileutil.GetLinesFromFile("input.txt")
+	if err != nil {
+		panic(err)
+	}
+
+	// How many units tall will the tower of rocks be after 2022 rocks have stopped falling?
+	answer := TallestTowerHeightAfterXFalls(2022, input_lines[0])
+	fmt.Printf("\nPart 1 answer: %v\n", answer)
+
+	// How tall will the tower be after 1000000000000 rocks have stopped?
+	answer = TallestTowerHeightAfterXFalls(1000000000000, input_lines[0]) // TODO NEXT un-comment; we got 1509734513266 -> 1523167155404 for full input which is too low
+	fmt.Printf("\nPart 2 answer: %v\n", answer)
 }
