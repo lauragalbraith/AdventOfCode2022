@@ -14,8 +14,6 @@
 
 using namespace std;
 
-constexpr int kTimeLimit = 24;
-
 // order in reverse to prioritize building harder robots first
 enum class Resource {kCrackedGeode, kObsidian, kClay, kOre, kResourceLimit};
 
@@ -82,7 +80,20 @@ public:
     this->max_useful_robots_[static_cast<size_t>(Resource::kClay)] = this->robot_costs_[static_cast<size_t>(Resource::kObsidian)][static_cast<size_t>(Resource::kClay)];
     this->max_useful_robots_[static_cast<size_t>(Resource::kObsidian)] = this->robot_costs_[static_cast<size_t>(Resource::kCrackedGeode)][static_cast<size_t>(Resource::kObsidian)];
 
-    this->max_useful_robots_[static_cast<size_t>(Resource::kCrackedGeode)] = kTimeLimit;  // (always build geode robots if possible)
+    this->max_useful_robots_[static_cast<size_t>(Resource::kCrackedGeode)] = 1000;  // (always build geode robots if possible)
+  }
+
+  // Determine the maximum quality possible
+  int Quality(const int time_limit) const {
+    // Start with one ore-collecting robot (free) and a robot factory
+    vector<int> robots(static_cast<size_t>(Resource::kResourceLimit), 0);
+    robots[static_cast<size_t>(Resource::kOre)] = 1;
+
+    vector<int> collected(static_cast<size_t>(Resource::kResourceLimit), 0);
+
+    int max_geodes_cracked = 0;
+    this->MaxGeodesCracked(robots, collected, 0, time_limit, max_geodes_cracked);
+    return this->id_ * max_geodes_cracked;
   }
 
   // returns true if the given resources are enough to build the given robot type
@@ -124,78 +135,78 @@ private:
   vector<int> max_useful_robots_;
 
   inline static const string kInputRegex = "Blueprint (\\d+): Each ore robot costs (\\d+) ore. Each clay robot costs (\\d+) ore. Each obsidian robot costs (\\d+) ore and (\\d+) clay. Each geode robot costs (\\d+) ore and (\\d+) obsidian.";
-};
 
-void MaxGeodesCracked(
-  const Blueprint& b,
-  vector<int>& robots,
-  vector<int>& collected,
-  int minute,
-  int& final_max_geodes)
-{
-  // Check if we have run out of time
-  if (minute >= kTimeLimit) {
-    final_max_geodes = max(final_max_geodes, collected[static_cast<size_t>(Resource::kCrackedGeode)]);
-    return;
-  }
-
-  // Prune the path early if we would not be able to reach the current-max geode count, even if we could build a new geode robot for the remaining minutes
-  auto natural_number_sum = [](int n){ return n * (n+1) / 2; };
-  int current_geode_robots = robots[static_cast<size_t>(Resource::kCrackedGeode)];
-
-  // ex. if we currently have 5 geode robots during minute 22, we can build 2 more, resulting in 5+6 cracked geodes = 6*7/2 - 4*5/2 = nat_num_sum(5+kTimeLimit-minute-1) - nat_num_sum(5-1)
-  int best_geodes_possible = collected[static_cast<size_t>(Resource::kCrackedGeode)] + natural_number_sum(current_geode_robots + kTimeLimit - minute - 1) - natural_number_sum(current_geode_robots - 1);
-
-  if (best_geodes_possible <= final_max_geodes) {
-    return;
-  }
-
-  // Decision point: which type of robot to build this turn
-  for (size_t robot_type = static_cast<size_t>(Resource::kCrackedGeode);
-    robot_type <= static_cast<size_t>(Resource::kResourceLimit);
-    ++robot_type)
+  void MaxGeodesCracked(
+    vector<int>& robots,
+    vector<int>& collected,
+    int minute,
+    const int time_limit,
+    int& final_max_geodes) const
   {
-    vector<int> collected_copy(collected);
-    vector<int> robots_copy(robots);
-
-    Resource robot_to_build = static_cast<Resource>(robot_type);
-
-    // Consider building robot this minute
-    if (robot_to_build != Resource::kResourceLimit) {
-      if (!b.Buildable(collected, robot_to_build)) {
-        continue;
-      }
-
-      // Do not build another robot if the number of built robots of that type produce enough resources every minute to build anything we want
-      if (b.UnnecessaryToBuild(robots, robot_to_build)) {
-        continue;
-      }
-
-      // Spend resources to build robot: takes one minute for the robot factory to construct any type of robot, although it consumes the necessary resources available when construction begins
-      b.SubtractRobotCost(collected_copy, robot_to_build);
+    // Check if we have run out of time
+    if (minute >= time_limit) {
+      final_max_geodes = max(final_max_geodes, collected[static_cast<size_t>(Resource::kCrackedGeode)]);
+      return;
     }
 
-    // Collect resources from all existing robots: each robot can collect 1 of its resource type per minute
-    for (size_t resource_i = static_cast<size_t>(Resource::kCrackedGeode);
-      resource_i != static_cast<size_t>(Resource::kResourceLimit);
-      ++resource_i)
+    // Prune the path early if we would not be able to reach the current-max geode count, even if we could build a new geode robot for the remaining minutes
+    auto natural_number_sum = [](int n){ return n * (n+1) / 2; };
+    int current_geode_robots = robots[static_cast<size_t>(Resource::kCrackedGeode)];
+
+    // ex. if we currently have 5 geode robots during minute 22, we can build 2 more, resulting in 5+6 cracked geodes = 6*7/2 - 4*5/2 = nat_num_sum(5+time_limit-minute-1) - nat_num_sum(5-1)
+    int best_geodes_possible = collected[static_cast<size_t>(Resource::kCrackedGeode)] + natural_number_sum(current_geode_robots + time_limit - minute - 1) - natural_number_sum(current_geode_robots - 1);
+
+    if (best_geodes_possible <= final_max_geodes) {
+      return;
+    }
+
+    // Decision point: which type of robot to build this turn
+    for (size_t robot_type = static_cast<size_t>(Resource::kCrackedGeode);
+      robot_type <= static_cast<size_t>(Resource::kResourceLimit);
+      ++robot_type)
     {
-      collected_copy[resource_i] += robots[resource_i];
+      vector<int> collected_copy(collected);
+      vector<int> robots_copy(robots);
+
+      Resource robot_to_build = static_cast<Resource>(robot_type);
+
+      // Consider building robot this minute
+      if (robot_to_build != Resource::kResourceLimit) {
+        if (!this->Buildable(collected, robot_to_build)) {
+          continue;
+        }
+
+        // Do not build another robot if the number of built robots of that type produce enough resources every minute to build anything we want
+        if (this->UnnecessaryToBuild(robots, robot_to_build)) {
+          continue;
+        }
+
+        // Spend resources to build robot: takes one minute for the robot factory to construct any type of robot, although it consumes the necessary resources available when construction begins
+        this->SubtractRobotCost(collected_copy, robot_to_build);
+      }
+
+      // Collect resources from all existing robots: each robot can collect 1 of its resource type per minute
+      for (size_t resource_i = static_cast<size_t>(Resource::kCrackedGeode);
+        resource_i != static_cast<size_t>(Resource::kResourceLimit);
+        ++resource_i)
+      {
+        collected_copy[resource_i] += robots[resource_i];
+      }
+
+      if (robot_to_build != Resource::kResourceLimit) {
+        // Add built robot to robots list
+        // cout << "DEBUG: build robot type " << robot_to_build << " after " << minute << " minutes" << endl;
+        robots_copy[robot_type] += 1;
+      }
+
+      // Run another minute, which updates total max geodes count
+      this->MaxGeodesCracked(robots_copy, collected_copy, minute + 1, time_limit, final_max_geodes);
+
+      // Backtrack this robot build
+      // (nothing to do because array copies were created)
     }
-
-    if (robot_to_build != Resource::kResourceLimit) {
-      // Add built robot to robots list
-      // cout << "DEBUG: build robot type " << robot_to_build << " after " << minute << " minutes" << endl;
-      robots_copy[robot_type] += 1;
-    }
-
-    // Run another minute, which updates total max geodes count
-    MaxGeodesCracked(b, robots_copy, collected_copy, minute + 1, final_max_geodes);
-
-    // Backtrack this robot build
-    // (nothing to do because array copies were created)
   }
-}
+};
 
 int main() {
   // Parse input
@@ -207,19 +218,14 @@ int main() {
 
   // Part 1
   // maximize the number of opened geodes after 24 minutes, per blueprint
+  int kTimeLimit = 24;
   // What do you get if you add up the quality level of all of the blueprints in your list?
   int quality_sum = 0;
 
   for (auto b:blueprints) {
-    // Start with one ore-collecting robot (free) and a robot factory
-    vector<int> robots(static_cast<size_t>(Resource::kResourceLimit), 0);
-    robots[static_cast<size_t>(Resource::kOre)] = 1;
-
-    vector<int> collected(static_cast<size_t>(Resource::kResourceLimit), 0);
-
-    int max_geodes_cracked = 0;
-    MaxGeodesCracked(b, robots, collected, 0, max_geodes_cracked);
-    quality_sum += b.id_ * max_geodes_cracked;
+    int b_quality = b.Quality(kTimeLimit);
+    cout << "DEBUG: blueprint " << b.id_ << " has quality " << b_quality << endl;
+    quality_sum += b_quality;
   }
 
   /*
@@ -235,7 +241,6 @@ int main() {
   - build the most expensive robot we don't have yet or build geode robot; or else calculate what we are lacking for that and either build the robot that we need a higher projection of resources from or simply wait
     - the next robot can get built at minute X if we just wait; or at minute Y if we build a robot of its first resource type now, or at minute Z if we build a robot of its second resource type now; take the minimum of these minutes as a decision
 
-  TODO: rework my backtracking solution with the ideas below:
   - from https://github.com/biggysmith/advent_of_code_2022/blob/master/src/day19/day19.cpp :
     - do not build another robot of a given type if the number of robots of that type already built produce enough resources every minute to build anything we want (i.e. the max cost in that resource for any robot) - excepting geode robots (always build geode robots if possible)
     - prune a path early if we would not be able to reach the current-max geode count even if we could build a new geode robot for the remaining minutes
@@ -247,8 +252,18 @@ int main() {
   cout << endl << "Part 1 answer: " << quality_sum << endl;
 
   // Part 2
-  // TODO
-  cout << endl << "Part 2 answer: " << endl;
+  kTimeLimit = 32;
+  int max_geodes_multiplied = 1;
+
+  for (size_t b_i = 0; b_i < 3 && b_i < blueprints.size(); ++b_i) {
+    int b_max_geodes = blueprints[b_i].Quality(kTimeLimit) / blueprints[b_i].id_;
+    cout << "DEBUG: blueprint index " << b_i << " can get " << b_max_geodes << " max geodes" << endl;
+    max_geodes_multiplied *= b_max_geodes;
+  }
+
+  // What do you get if you multiply these numbers together?
+  // TODO NEXT save the answers from part 1 (in the blueprint class?) to start max_geodes at for part 2, to enable quicker pruning for part 2
+  cout << endl << "Part 2 answer: " << max_geodes_multiplied << endl;
 
   return 0;
 }
