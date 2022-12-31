@@ -7,6 +7,7 @@
 
 #include <algorithm>  // move, max
 #include <iostream>  // cout, endl, ostream
+#include <map>  // map
 #include <regex>  // regex, regex_search, smatch
 #include <stdexcept>  // invalid_argument
 #include <string>  // string, stoi
@@ -84,15 +85,24 @@ public:
   }
 
   // Determine the maximum quality possible
-  int Quality(const int time_limit) const {
+  int Quality(const int time_limit) {
     // Start with one ore-collecting robot (free) and a robot factory
     vector<int> robots(static_cast<size_t>(Resource::kResourceLimit), 0);
     robots[static_cast<size_t>(Resource::kOre)] = 1;
 
     vector<int> collected(static_cast<size_t>(Resource::kResourceLimit), 0);
 
+    // Start the max to hit as high as we can
     int max_geodes_cracked = 0;
+    if (this->max_geodes_at_time_.size() > 0) {
+      max_geodes_cracked = this->max_geodes_at_time_.cbegin()->second;
+    }
+
     this->MaxGeodesCracked(robots, collected, 0, time_limit, max_geodes_cracked);
+
+    // save answer
+    this->max_geodes_at_time_[time_limit] = max_geodes_cracked;
+
     return this->id_ * max_geodes_cracked;
   }
 
@@ -134,8 +144,12 @@ private:
   // (i.e. the max cost in that resource for any robot) - excepting geode robots
   vector<int> max_useful_robots_;
 
+  // memoize the max number of geodes at different time limits
+  map<int,int> max_geodes_at_time_;
+
   inline static const string kInputRegex = "Blueprint (\\d+): Each ore robot costs (\\d+) ore. Each clay robot costs (\\d+) ore. Each obsidian robot costs (\\d+) ore and (\\d+) clay. Each geode robot costs (\\d+) ore and (\\d+) obsidian.";
 
+  // credit to https://github.com/biggysmith/advent_of_code_2022/blob/master/src/day19/day19.cpp and https://github.com/vss2sn/advent_of_code/blob/master/2022/cpp/day_19a.cpp for path-pruning ideas
   void MaxGeodesCracked(
     vector<int>& robots,
     vector<int>& collected,
@@ -195,7 +209,6 @@ private:
 
       if (robot_to_build != Resource::kResourceLimit) {
         // Add built robot to robots list
-        // cout << "DEBUG: build robot type " << robot_to_build << " after " << minute << " minutes" << endl;
         robots_copy[robot_type] += 1;
       }
 
@@ -210,7 +223,7 @@ private:
 
 int main() {
   // Parse input
-  vector<string> input = ReadLinesFromFile("example_input.txt");
+  vector<string> input = ReadLinesFromFile("input.txt");
   vector<Blueprint> blueprints;
   for (auto line:input) {
     blueprints.push_back(Blueprint::ParseBlueprint(line));
@@ -224,30 +237,8 @@ int main() {
 
   for (auto b:blueprints) {
     int b_quality = b.Quality(kTimeLimit);
-    cout << "DEBUG: blueprint " << b.id_ << " has quality " << b_quality << endl;
     quality_sum += b_quality;
   }
-
-  /*
-  IDEAS
-  - backtracking per blueprint to decide when/which robot is built
-    - O(5^24) which is too slow
-  - try building more costly robots first
-  - create subclasses for robot types, and an enum class for the resource types
-  - DP? with what minute each necessary robot is built? with how soon a single geode robot can be built?
-  - cut off path if we know we will not meet the current maximum
-  - treat as graph problem, with edges between different-robot-count states, and do dijkstra's with lowest-minute distances saved... then treat those as edges and do a dfs where each walk counts up geodes and return the best geode count
-  - work backwards from cost of geode robot to cost of the necessary robots by minute 24
-  - build the most expensive robot we don't have yet or build geode robot; or else calculate what we are lacking for that and either build the robot that we need a higher projection of resources from or simply wait
-    - the next robot can get built at minute X if we just wait; or at minute Y if we build a robot of its first resource type now, or at minute Z if we build a robot of its second resource type now; take the minimum of these minutes as a decision
-
-  - from https://github.com/biggysmith/advent_of_code_2022/blob/master/src/day19/day19.cpp :
-    - do not build another robot of a given type if the number of robots of that type already built produce enough resources every minute to build anything we want (i.e. the max cost in that resource for any robot) - excepting geode robots (always build geode robots if possible)
-    - prune a path early if we would not be able to reach the current-max geode count even if we could build a new geode robot for the remaining minutes
-
-  - from https://github.com/vss2sn/advent_of_code/blob/master/2022/cpp/day_19a.cpp :
-    - do not build a robot if it is not "helpful"; a build action is "helpful" if the number of robots has not reached the point where you can cover the cost every turn (see above point about every minute)
-  */
   
   cout << endl << "Part 1 answer: " << quality_sum << endl;
 
@@ -257,12 +248,10 @@ int main() {
 
   for (size_t b_i = 0; b_i < 3 && b_i < blueprints.size(); ++b_i) {
     int b_max_geodes = blueprints[b_i].Quality(kTimeLimit) / blueprints[b_i].id_;
-    cout << "DEBUG: blueprint index " << b_i << " can get " << b_max_geodes << " max geodes" << endl;
     max_geodes_multiplied *= b_max_geodes;
   }
 
   // What do you get if you multiply these numbers together?
-  // TODO NEXT save the answers from part 1 (in the blueprint class?) to start max_geodes at for part 2, to enable quicker pruning for part 2
   cout << endl << "Part 2 answer: " << max_geodes_multiplied << endl;
 
   return 0;
