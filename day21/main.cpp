@@ -1,5 +1,5 @@
 // main.cpp: Laura Galbraith
-// Description: Solve Day 22 of Advent of Code 2022
+// Description: Solve Day 21 of Advent of Code 2022
 // Monkey Math
 // Compile and run: rm main.out ; g++ -std=c++17 -static-liblsan -fsanitize=leak ../util/cppfileutil/fileutil.cpp main.cpp -o main.out -Wall -Werror -Wextra -pedantic -Wshadow -Wconversion -fmax-errors=2 && ./main.out
 
