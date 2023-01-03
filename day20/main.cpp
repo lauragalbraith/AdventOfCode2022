@@ -5,7 +5,7 @@
 
 #include "../util/cppfileutil/fileutil.hpp" // ReadLinesFromFile
 
-#include <cmath>  // abs
+#include <cmath>  // llabs
 #include <iostream>  // cout, endl
 #include <string>  // string, stoi
 #include <unordered_map>  // unordered_map
@@ -25,7 +25,7 @@ class CircularDoublyLinkedList {
     // create elements from vals, maintaining order
     for (size_t i = 0; i < vals.size(); ++i) {
       // create and store element
-      Element* elem = new Element(vals[i]);
+      Element* elem = new Element(static_cast<long long int>(vals[i]));
       this->initial_order_[i] = elem;
 
       // update element behind us
@@ -72,8 +72,8 @@ class CircularDoublyLinkedList {
     // For each value in the initial order...
     for (auto elem:this->initial_order_) {      
       // can ignore times looping completely around the other len-1 elements
-      const int spaces_to_move = abs(elem->val) % static_cast<int>(this->initial_order_.size() - 1);
-      int spaces_moved = 0;
+      const long long int spaces_to_move = llabs(elem->val) % static_cast<long long int>(this->initial_order_.size() - 1);
+      long long int spaces_moved = 0;
 
       // effectively remove elem itself from list before trying to loop
       elem->prev->next = elem->next;
@@ -93,8 +93,6 @@ class CircularDoublyLinkedList {
       }
 
       // update next,prev pointers of the source, destination, and elem
-      // cout << "DEBUG: element " << elem->val << " would be moved to just in front of " << destination->val << endl;
-
       elem->next = destination->next;
       elem->next->prev = elem;
 
@@ -104,8 +102,8 @@ class CircularDoublyLinkedList {
   }
 
   // function to solve Part 1
-  int GroveCoordinates() const {
-    int sum = 0;
+  long long int GroveCoordinates() const {
+    long long int sum = 0;
 
     Element* curr = this->head_;
     for (int num_to_hit = 0; num_to_hit < 3; ++num_to_hit) {
@@ -116,13 +114,17 @@ class CircularDoublyLinkedList {
         curr = curr->next;
       }
 
-      // cout << "DEBUG: thousandth number is " << curr->val << endl;
-
       // add value to sum
       sum += curr->val;
     }
 
     return sum;
+  }
+
+  void ApplyKey(const long long int& key) {
+    for (auto elem:this->initial_order_) {
+      elem->val *= key;
+    }
   }
 
   void PrintListFromZero() const {
@@ -140,10 +142,10 @@ class CircularDoublyLinkedList {
     // pointers ahead and behind in the list
     Element *next, *prev;
     // value stored by the element
-    int val;
+    long long int val;
 
     // constructor
-    Element(const int& value) {
+    Element(const long long int& value) {
       this->val = value;
       this->next = nullptr;
       this->prev = nullptr;
@@ -249,28 +251,24 @@ int main() {
   // Part 1
   // Mix the file exactly once
   list.Mix();
-  // list.PrintListFromZero();
 
   // What is the sum of the three numbers that form the grove coordinates?
   cout << endl << "Part 1 answer: " << list.GroveCoordinates() << endl;
 
-  /*
-  IDEAS
-
-  - (circular?) doubly-linked list
-  - could use vector, but that is less time-efficient since it has to copy following elements to squeeze stuff in; has the benefit of being easier to code
-  - have some way to keep track of the initial order, since that is maintained for each mix operation (pointers to elements in the linked list?)
-  - note: elements getting moved to before-the-first-element end up after-the-last-element (at least in the negative direction) (this shouldn't effect the final result, since the list "starts" at 0)
-  - note: must be able to handle 0, which does not move
-  - could consider 0 as the "head" of the list, since that's where the answer comes from
-  - when finding the 1000th number, mod it by the length of the list, then move forward that many (not as relevant for the full input, which is 5000 elements)
-  - since elements can be larger than the list length, mod them by the list length before moving them
-  - note: there are duplicate elements, unlike the example input
-  */
-
   // Part 2
-  // TODO
-  cout << endl << "Part 2 answer: " << endl;
+  CircularDoublyLinkedList decrypted_list = CircularDoublyLinkedList(values);
+
+  // Apply decryption key
+  constexpr long long int kDecryptionKey = 811589153;
+  decrypted_list.ApplyKey(kDecryptionKey);
+
+  // Mix 10 times
+  for (size_t i = 0; i < 10; ++i) {
+    decrypted_list.Mix();
+  }
+
+  // What is the sum of the three numbers that form the grove coordinates?
+  cout << endl << "Part 2 answer: " << decrypted_list.GroveCoordinates() << endl;
 
   return 0;
 }
