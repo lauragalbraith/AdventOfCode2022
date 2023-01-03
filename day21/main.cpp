@@ -23,11 +23,14 @@ long long int Divide(long long int a, long long int b) { return a / b; }
 
 struct Monkey {
   string name;
+
   bool val_finalized;
   long long int val;
 
   monkey_operation operation;
   string a_name, b_name;
+
+  bool ancestor_of_human;
 
   // constructor to parse a monkey
   Monkey(const string& input) {
@@ -61,6 +64,7 @@ struct Monkey {
     }
 
     this->name = sm[1];
+    this->ancestor_of_human = false;
   }
 
   // default constructor
@@ -68,6 +72,7 @@ struct Monkey {
   Monkey() {
     this->val_finalized = false;
     this->operation = nullptr;
+    this->ancestor_of_human = false;
   }
 
   // copy constructor
@@ -122,6 +127,10 @@ ostream& operator<<(ostream& os, const Monkey& m) {
 regex Monkey::number_monkey_rgx = regex("^([^: ]+): (\\d+)$");
 regex Monkey::operation_monkey_rgx = regex("^([^: ]+): ([^: ]+) ([+\\-*\\/]) ([^: ]+)$");
 
+// constants in the problem description
+string kRootMonkey("root");
+string kHuman("humn");
+
 int main() {
   // Parse input
   vector<string> input = ReadLinesFromFile("input.txt");
@@ -146,7 +155,7 @@ int main() {
   // Part 1
   // Traverse the tree to finalize value at root
   stack<string> to_process;
-  to_process.push("root");
+  to_process.push(kRootMonkey);
   while (!to_process.empty()) {
     Monkey& next_monkey = monkeys[to_process.top()];
 
@@ -172,11 +181,77 @@ int main() {
   }
 
   // What number will the monkey named root yell?
-  cout << endl << "Part 1 answer: " << monkeys["root"].val << endl;
+  cout << endl << "Part 1 answer: " << monkeys[kRootMonkey].val << endl;
 
   // Part 2
-  // TODO
-  cout << endl << "Part 2 answer: " << endl;
+//   cout << "DEBUG: Root's monkey dependencies are " << monkeys[kRootMonkey].a_name << ": " << monkeys[monkeys[kRootMonkey].a_name].val << " and " << monkeys[kRootMonkey].b_name << ": " << monkeys[monkeys[kRootMonkey].b_name].val << endl;
+
+  // determine all ancestors of the human
+  string monkey_name = kHuman;
+  while (monkey_name != kRootMonkey) {
+    // find the current monkey's parent
+    for (auto m_k_v:monkeys) {
+      if (m_k_v.second.a_name == monkey_name || m_k_v.second.b_name == monkey_name) {
+        monkey_name = m_k_v.first;
+        break;
+      }
+    }
+
+    cout << "DEBUG: " << monkey_name << " is an ancestor of the " << kHuman << " monkey node" << endl;
+    monkeys[monkey_name].ancestor_of_human = true;
+  }
+
+  // track the result we want to get
+  Monkey& curr_monkey = monkeys[monkeys[kRootMonkey].a_name];
+  long long int desired_val = monkeys[monkeys[kRootMonkey].b_name].val;
+
+  if (!curr_monkey.ancestor_of_human) {
+    desired_val = curr_monkey.val;
+    curr_monkey = monkeys[monkeys[kRootMonkey].b_name];
+  }
+
+  // walk down from root setting up the answers we want
+  while (curr_monkey.name != kHuman) {
+    cout << "DEBUG: we want to get " << desired_val << " when evaluating monkey " << curr_monkey.name << endl;
+
+    if (monkeys[curr_monkey.a_name].ancestor_of_human || curr_monkey.a_name == kHuman) {
+      monkey_operation reverse_operation;
+      if (curr_monkey.operation == &Add) {
+        reverse_operation = &Subtract;
+      } else if (curr_monkey.operation == &Multiply) {
+        reverse_operation = &Divide;
+      } else if (curr_monkey.operation == &Subtract) {
+        reverse_operation = &Add;
+      } else {
+        reverse_operation = &Multiply;
+      }
+
+      desired_val = reverse_operation(
+        desired_val,
+        monkeys[curr_monkey.b_name].val);
+
+      curr_monkey = monkeys[curr_monkey.a_name];
+    } else {
+      if (curr_monkey.operation == &Add) {
+        desired_val = Subtract(desired_val, monkeys[curr_monkey.a_name].val);
+      } else if (curr_monkey.operation == &Multiply) {
+        desired_val = Divide(desired_val, monkeys[curr_monkey.a_name].val);
+      } else if (curr_monkey.operation == &Subtract) {
+        desired_val = Subtract(monkeys[curr_monkey.a_name].val, desired_val);
+      } else {
+        desired_val = Divide(monkeys[curr_monkey.a_name].val, desired_val);
+      }
+
+      curr_monkey = monkeys[curr_monkey.b_name];
+    }
+  }
+
+  // IDEA implement == operation (could return 0 vs 1)
+  // IDEA - print the tree to manually do math as to what humn should say
+  // IDEA binary search for humn value
+
+  // What number do you yell to pass root's equality test?
+  cout << endl << "Part 2 answer: " << desired_val << endl;
 
   return 0;
 }
