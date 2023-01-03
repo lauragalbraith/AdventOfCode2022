@@ -237,7 +237,7 @@ class CircularDoublyLinkedList {
 
 int main() {
   // Parse input
-  vector<string> input = ReadLinesFromFile("example_input.txt");
+  vector<string> input = ReadLinesFromFile("input.txt");
 
   vector<int> values(input.size(), 0);
   for (size_t i = 0; i < input.size(); ++i) {
