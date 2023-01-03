@@ -140,18 +140,6 @@ int main() {
     monkeys[line.substr(0,4)] = Monkey(line);
   }
 
-  /*for (auto k_v:monkeys) {
-    cout << "DEBUG: " << k_v.second << " whose name better match " << k_v.first << endl;
-  }*/
-
-  /*
-  IDEAS
-
-  - binary tree, where each monkey is a node, who may have no children (be a number) or a math operation monkey (can be *,+,-,/)
-  - could supplement with a map from monkey name to its node pointer if it hasn't been located in the tree yet
-  - OR - better yet not have an actual pointer-based tree implementation but instead have each node store the monkey name, which can then be found in the map
-  */
-
   // Part 1
   // Traverse the tree to finalize value at root
   stack<string> to_process;
@@ -169,14 +157,10 @@ int main() {
       next_monkey.val_finalized = true;
       to_process.pop();
 
-    //   cout << "DEBUG: monkey " << next_monkey.name << " can now be calculated; its value is now " << next_monkey.val << endl;
-
     } else {
       // process children before us
       to_process.push(next_monkey.b_name);
       to_process.push(next_monkey.a_name);
-
-    //   cout << "DEBUG: monkeys " << next_monkey.a_name << " and " << next_monkey.b_name << " must be solved before " << next_monkey.name << endl;
     }
   }
 
@@ -184,8 +168,6 @@ int main() {
   cout << endl << "Part 1 answer: " << monkeys[kRootMonkey].val << endl;
 
   // Part 2
-//   cout << "DEBUG: Root's monkey dependencies are " << monkeys[kRootMonkey].a_name << ": " << monkeys[monkeys[kRootMonkey].a_name].val << " and " << monkeys[kRootMonkey].b_name << ": " << monkeys[monkeys[kRootMonkey].b_name].val << endl;
-
   // determine all ancestors of the human
   string monkey_name = kHuman;
   while (monkey_name != kRootMonkey) {
@@ -197,7 +179,6 @@ int main() {
       }
     }
 
-    cout << "DEBUG: " << monkey_name << " is an ancestor of the " << kHuman << " monkey node" << endl;
     monkeys[monkey_name].ancestor_of_human = true;
   }
 
@@ -212,8 +193,6 @@ int main() {
 
   // walk down from root setting up the answers we want
   while (curr_monkey.name != kHuman) {
-    cout << "DEBUG: we want to get " << desired_val << " when evaluating monkey " << curr_monkey.name << endl;
-
     if (monkeys[curr_monkey.a_name].ancestor_of_human || curr_monkey.a_name == kHuman) {
       monkey_operation reverse_operation;
       if (curr_monkey.operation == &Add) {
@@ -245,10 +224,6 @@ int main() {
       curr_monkey = monkeys[curr_monkey.b_name];
     }
   }
-
-  // IDEA implement == operation (could return 0 vs 1)
-  // IDEA - print the tree to manually do math as to what humn should say
-  // IDEA binary search for humn value
 
   // What number do you yell to pass root's equality test?
   cout << endl << "Part 2 answer: " << desired_val << endl;
