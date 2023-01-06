@@ -207,7 +207,7 @@ class Board {
       row += this->cube_faces_[this->curr_face_].top_left_coordinate.first;
       col += this->cube_faces_[this->curr_face_].top_left_coordinate.second;
     }
-    
+
     // row and column being 1-indexed
     return 1000*(row+1) + 4*(col+1) + facing;
   }
@@ -427,7 +427,7 @@ int main() {
   // Part 2
   // Fold the map into a cube
   board.FoldIntoCube();
-  
+
   // Follow the path given in the monkeys' notes
   for (auto step:path_steps) {
     board.WalkSteps(step.first);
