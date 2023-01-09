@@ -240,29 +240,10 @@ int main() {
     }
   }
 
-  /*
-  IDEAS
-  - diagonal moves are possible
-  - if elf is totally alone (nobody in any of the 8 adjacent cells), they do not propose moving at all
-  - we need to (effectively) simulate an infinite grid, because elves can move to positions outside the initial grid
-    - is there some formula I could do to determine how big the max grid will need to be? number of elves multiplied by 2 in both height and width? (so all elves have a space between them even if lined up in a single row)
-    - center initial input in my grid by lining up its center with the center of my grid
-  - proposed move is first valid in: N (check N, NE, and NW), S (check S, SE, and SW), W (check W, NW, and SW), E (check E, NE, and SE)
-  - then moves take effect, unless >1 elf would occupy a new position
-  - then considered directions are rotated forward one (previous 2nd consideration is now the 1st consideration)
-    - IDEA: keep directions in vector, and track just the first direction considered as an index into that array
-
-  - track the min/max row/col of all elves to be able to O(1) tell what the "smallest rectangle that contains every Elf" is
-  - directions considered is same across all elves; store it with grid
-  - maybe have grid class and elf class separately, and elves call into the grid class to get their next considered position
-  - enter proposed moves into a map from coord to list of elf pointers taking up that new position; that way, to effect changes, I can iterate over map, skipping spots with more than one elf, and easily count elves proposing positions
-
-  - I bet part 2 will be to simulate until all elves stop moving; make sure I'm able to track how many elves proposed moving each round (when it's zero, we can stop)
-  */
-
   // Part 1
   // Simulate the Elves' process and find the smallest rectangle that contains the Elves after 10 rounds
-  for (int round = 1; round <= 10; ++round) {
+  int round = 1;
+  for (; round <= 10; ++round) {
     unordered_map<Coordinate, vector<size_t>> new_cells_proposed;
 
     // collect all proposals
@@ -272,8 +253,6 @@ int main() {
         new_cells_proposed[elf_proposed.first].push_back(elf_i);
       }
     }
-
-    // cout << "DEBUG: round " << round << ": " << new_cells_proposed.size() << " new cells were proposed to be taken" << endl;
 
     // take all non-clashing proposals
     for (auto k_v:new_cells_proposed) {
@@ -292,8 +271,39 @@ int main() {
   cout << endl << "Part 1 answer: " << smallest_rectangle_area - elves.size() << endl;
 
   // Part 2
-  // TODO
-  cout << endl << "Part 2 answer: " << endl;
+  // Figure out where the Elves need to go.
+  size_t num_new_cells = 1;
+  for (; ; ++round) {
+    unordered_map<Coordinate, vector<size_t>> new_cells_proposed;
+
+    // collect all proposals
+    for (size_t elf_i = 0; elf_i < elves.size(); ++elf_i) {
+      pair<Coordinate,bool> elf_proposed = elves[elf_i].CalculateProposal(grid);
+      if (elf_proposed.second) {
+        new_cells_proposed[elf_proposed.first].push_back(elf_i);
+      }
+    }
+
+    // see if we've reached a stable state
+    num_new_cells = new_cells_proposed.size();
+    if (num_new_cells == 0) {
+      break;
+    }
+
+    // take all non-clashing proposals
+    for (auto k_v:new_cells_proposed) {
+      if (k_v.second.size() == 1) {
+        grid.MarkUnoccupied(elves[k_v.second[0]].CurrentPosition());
+        elves[k_v.second[0]].MoveAsProposed();
+        grid.MarkOccupied(k_v.first);
+      }
+    }
+
+    grid.NextRound();
+  }
+  
+  // What is the number of the first round where no Elf moves?
+  cout << endl << "Part 2 answer: " << round << endl;
 
   return 0;
 }
