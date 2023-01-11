@@ -6,6 +6,7 @@
 #include "../util/cppfileutil/fileutil.hpp" // ReadLinesFromFile
 
 #include <algorithm>  // min
+#include <cmath>  // abs
 #include <iostream>  // cout, endl, ostream
 #include <string>  // string
 #include <unordered_map>  // unordered_map
@@ -92,11 +93,12 @@ ostream& operator<<(ostream& os, const CellState& c) {
   return os;
 }
 
-constexpr int kSourceRow = 0, kSourceCol = 1;
-int kDestinationRow, kDestinationCol;
-
-int ManhattanDistanceToDestination(const int& r, const int& c) {
-  return (kDestinationRow - r) + (kDestinationCol - c);
+int ManhattanDistanceToDestination(
+  const int& r,
+  const int& c,
+  const int& destination_row,
+  const int& destination_col) {
+  return abs(destination_row - r) + abs(destination_col - c);
 }
 
 class ValleyState {
@@ -182,10 +184,9 @@ class ValleyState {
     }
   }
 
+  // also returns false if cell is outside the bounds of the valley
   bool IsCellEmpty(const int& row, const int& col) const {
     if (row < 0 || row >= this->kRows || col < 0 || col >= this->kColumns) {
-      cout << "DEBUG: THIS SHOULD NEVER HAPPEN - we are checking if " << row << "," << col << " are empty when they are totally outside the bounds of the valley" << endl;
-      cout << "DEBUG: kRows is " << this->kRows << " and kColumns is " << this->kColumns << endl;
       return false;
     }
 
@@ -233,19 +234,20 @@ void DFS(
   int curr_row,
   int curr_col,
   int curr_minute,
+  const int& destination_row,
+  const int& destination_col,
   int& min_minutes,
   vector<ValleyState>& valley_over_time,
   vector<vector<vector<bool>>>& solved)
 {
   // Check for answer
-  if (curr_row == kDestinationRow && curr_col == kDestinationCol) {
-    // cout << "DEBUG: reached destination at " << curr_minute << endl;
+  if (curr_row == destination_row && curr_col == destination_col) {
     min_minutes = min(min_minutes, curr_minute);
     return;
   }
 
   // Check if this path can feasibly beat the current best answer
-  if (ManhattanDistanceToDestination(curr_row, curr_col) + curr_minute >= min_minutes) {
+  if (ManhattanDistanceToDestination(curr_row, curr_col, destination_row, destination_col) + curr_minute >= min_minutes) {
     return;
   }
 
@@ -255,33 +257,21 @@ void DFS(
   // Determine what the valley will look like in the next minute
   int next_minute = curr_minute+1;
   if (valley_over_time.size() <= static_cast<size_t>(next_minute)) {
-    // cout << "DEBUG: next minute is " << next_minute << " and valley_over_time only has data up to minute " << valley_over_time.size()-1 << endl;
     ValleyState next_valley(valley_over_time[curr_minute]);
     valley_over_time[curr_minute].FillInAdvancedState(next_valley);
-
-    // cout << next_valley;
 
     valley_over_time.push_back(next_valley);
   }
 
-  // cout << "DEBUG: at minute " << curr_minute << ", row:" << curr_row << ", col:" << curr_col << ": next valley state is:" << endl;
-  // cout << valley_over_time[next_minute];
-
   // Try moving
-  for (size_t move = 0; move < row_diffs.size(); ++move) {
+  // if our destination is above our current position, try positions in reverse
+  for (size_t move = destination_row > curr_row ? 0 : row_diffs.size()-1;
+    move < row_diffs.size();
+    move = destination_row > curr_row ? move+1 : move-1) {
     int next_row = curr_row + row_diffs[move];
     int next_col = curr_col + col_diffs[move];
 
-    // cout << "DEBUG: considering moving " << move << " from " << curr_row << "," << curr_col << " to " << next_row << "," << next_col << endl;
-
-    // check move is in bounds
-    // note: no need to check upper bounds b/c we will either be at a wall or the destination in that current-case
-    if (next_row < 0 || next_col < 0) {
-      continue;
-    }
-    
-    // check move is empty (i.e. not a wall and not a blizzard)
-    // cout << "DEBUG: checking if we can move to row:" << next_row << ", col:" << next_col << endl;
+    // check move is in bounds and empty (i.e. not a wall and not a blizzard)
     if (!valley_over_time[next_minute].IsCellEmpty(next_row, next_col)) {
       continue;
     }
@@ -292,12 +282,19 @@ void DFS(
     }
 
     // take move
-    DFS(next_row, next_col, next_minute, min_minutes, valley_over_time, solved);
+    DFS(
+      next_row,
+      next_col,
+      next_minute,
+      destination_row,
+      destination_col,
+      min_minutes,
+      valley_over_time,
+      solved);
   }
 
   // Try waiting in place
   // check this space will be open next minute
-  // cout << "DEBUG: checking if we can wait in place at row:" << curr_row << ", col:" << curr_col << endl;
   if (!valley_over_time[next_minute].IsCellEmpty(curr_row, curr_col)) {
     return;
   }
@@ -307,57 +304,91 @@ void DFS(
     return;
   }
 
-  DFS(curr_row, curr_col, next_minute, min_minutes, valley_over_time, solved);
-
-  // cout << "DEBUG: leaving row:" << curr_row << ", col:" << curr_col << " at minute " << curr_minute << endl;
+  DFS(
+    curr_row,
+    curr_col,
+    next_minute,
+    destination_row,
+    destination_col,
+    min_minutes,
+    valley_over_time,
+    solved);
 }
 
 int main() {
   // Parse input: map of the valley and the blizzards
   vector<string> input = ReadLinesFromFile("input.txt");
 
-  kDestinationRow = static_cast<int>(input.size()) - 1;
-  kDestinationCol = static_cast<int>(input[0].size()) - 2;
+  const int kSourceRow = 0, kSourceCol = 1;  // same across all inputs
+  const int kDestinationRow = static_cast<int>(input.size()) - 1;
+  const int kDestinationCol = static_cast<int>(input[0].size()) - 2;
 
   ValleyState start_state(input);
 
-  // cout << "DEBUG: starting valley state is:" << endl;
-  // cout << start_state;
-
-  /*
-  IDEAS
-  - walls are specified in input, but one opening is always one away from top left and other openeing is always one away from bottom right
-  - track valley as 2d vector of size_t lists where each size_t acts as a dir or is out of bounds to indicate calm ground, and each cell can have multiple blizzards on it
-  - inputs do NOT contain blizzards that could get into the entrance or the exit spaces
-  - full input does necessitate waiting at the entrance for a couple minutes, so we do need to emulate the entrance space, if not the exit
-
-  -DFS, pruning paths when we are on the same space as a blizzard, 
-  - try to prune early by:
-    - moving into the exit if we can;  (done by down being the first direction investigated)
-    - since moving backwards is possible, we can't always say we should be moving towards the exit
-    - if our manhattan distance from the exit means we wouldn't beat the current best-minutes
-
-  - include "waiting" as a dfs option, but have it be the last option
-  */
+  // we should be able to beat travelling up every non-wall row and down every column twice, accounting for the source/destination positions
+  const int kMaxTravelTime = 2 * ((kDestinationRow+1 - 2) * (kDestinationCol+1 - 2)) + 2;
 
   // Part 1
-  int min_minutes = (kDestinationRow+1 - 2) * (kDestinationCol+1 - 2) + 2;  // we should be able to beat travelling up every non-wall row and down every column, accounting for the source/destination positions
+  int min_minutes_to_bottom_first_time = kMaxTravelTime;
 
+  // credit to https://github.com/ColasNahaboo/advent-of-code-my-solutions/blob/main/go/2022/days/d24/d24.go for the inspiration to:
   // memoize the possible states of the valley, since they are all merely a function of time
   vector<ValleyState> valley_over_time(1, start_state);
 
   // credit to https://github.com/ColasNahaboo/advent-of-code-my-solutions/blob/main/go/2022/days/d24/d24.go for the inspiration to:
   // track which states we have already tried to find a path from: a function of current position and time
-  vector<vector<vector<bool>>> solved(min_minutes+1, vector<vector<bool>>(kDestinationRow+1, vector<bool>(kDestinationCol+1, false)));  // accessed like [min][row][col]
+  vector<vector<vector<bool>>> solved(kMaxTravelTime+1, vector<vector<bool>>(kDestinationRow+1, vector<bool>(kDestinationCol+1, false)));  // accessed like [min][row][col]
 
-  DFS(kSourceRow, kSourceCol, 0, min_minutes, valley_over_time, solved);
+  DFS(
+    kSourceRow,
+    kSourceCol,
+    0,
+    kDestinationRow,
+    kDestinationCol,
+    min_minutes_to_bottom_first_time,
+    valley_over_time,
+    solved);
 
   // What is the fewest number of minutes required to avoid the blizzards and reach the goal?
-  cout << endl << "Part 1 answer: " << min_minutes << endl;
+  cout << endl << "Part 1 answer: " << min_minutes_to_bottom_first_time << endl;
 
   // Part 2
-  // TODO
-  cout << endl << "Part 2 answer: " << endl;
+  // Travel back to the start from the goal
+  int min_minutes_to_top = kMaxTravelTime;
+
+  valley_over_time = vector<ValleyState>(1, valley_over_time[min_minutes_to_bottom_first_time]);
+
+  solved = vector<vector<vector<bool>>>(kMaxTravelTime+1, vector<vector<bool>>(kDestinationRow+1, vector<bool>(kDestinationCol+1, false)));
+
+  DFS(
+    kDestinationRow,
+    kDestinationCol,
+    0,
+    kSourceRow,
+    kSourceCol,
+    min_minutes_to_top,
+    valley_over_time,
+    solved);
+
+  // Travel to the goal again
+  int min_minutes_to_bottom_second_time = kMaxTravelTime;
+
+  valley_over_time = vector<ValleyState>(1, valley_over_time[min_minutes_to_top]);
+
+  solved = vector<vector<vector<bool>>>(kMaxTravelTime+1, vector<vector<bool>>(kDestinationRow+1, vector<bool>(kDestinationCol+1, false)));
+
+  DFS(
+    kSourceRow,
+    kSourceCol,
+    0,
+    kDestinationRow,
+    kDestinationCol,
+    min_minutes_to_bottom_second_time,
+    valley_over_time,
+    solved);
+
+  // What is the fewest number of minutes required to reach the goal, go back to the start, then reach the goal again?
+  cout << endl << "Part 2 answer: " << min_minutes_to_bottom_first_time + min_minutes_to_top + min_minutes_to_bottom_second_time << endl;
 
   return 0;
 }
