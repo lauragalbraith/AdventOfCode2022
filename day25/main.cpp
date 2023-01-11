@@ -7,7 +7,7 @@
 
 #include <cmath>  // llabs
 #include <iostream>  // cout, endl
-#include <string>  // string, stoi, to_string
+#include <string>  // string
 #include <unordered_map>  // unordered_map
 #include <vector>  // vector
 
@@ -27,9 +27,6 @@ long long unsigned int FromSNAFU(const string& snafu) {
 
   for (size_t i = snafu.size()-1; i < snafu.size(); --i, power_of_five *= 5) {
     long long int digit_val = power_of_five * snafu_digit_value[snafu[i]];
-
-    // cout << "DEBUG: for index " << i << ": '" << snafu[i] << "' we are adding " << digit_val << endl;
-
     val += digit_val;
   }
 
@@ -49,8 +46,6 @@ string ToSNAFU(const long long unsigned int& x) {
   long long int remaining = static_cast<long long int>(x);
   string ans(largest_digit_idx+1, '0');
 
-  // long long int prev_multiple = 5;  // TODO FINALLY remove if unused
-
   // calculate each digit
   // unintuitively, the largest digit will sit at ans[0]
   for (size_t i = 0; i <= largest_digit_idx; ++i, power_of_five /= 5) {
@@ -60,14 +55,12 @@ string ToSNAFU(const long long unsigned int& x) {
       // subtract until we've on the closer side of the number-line-teeter-totter
       // i.e. we are getting as close to 0 as possible by subtracting the power of five
       while (digit_val < 2 && !((remaining-power_of_five) < 0 && llabs(remaining-power_of_five) > remaining)) {
-        // cout << "DEBUG: remaining is +" << remaining << " and we could get closer to zero, so we're including another " << power_of_five << endl;
         remaining -= power_of_five;
         ++digit_val;
       }
     } else if (remaining < 0) {
       // add until we're on the closer side of 0
       while (digit_val > -2 && !((remaining+power_of_five) > 0 && (remaining+power_of_five) > llabs(remaining))) {
-        // cout << "DEBUG: remaining is " << remaining << " and we could get closer to zero, so we're detracting another " << power_of_five << endl;
         remaining += power_of_five;
         --digit_val;
       }
@@ -89,60 +82,16 @@ int main() {
   // Parse input: fuel requirements
   vector<string> input = ReadLinesFromFile("input.txt");
 
-  /*
-  IDEAS
-  - base 5 instead of base 10
-  - 0,1,2,3,4 -> =,-,0,1,2
-  - "So, because ten (in normal numbers) is two fives and no ones, in SNAFU it is written 20. Since eight (in normal numbers) is two fives minus two ones, it is written 2=."
-    - 
-
-  - parsing from input to int should be easy (just apply the formula on successive powers of two), but maybe I could manually translate from int to our final answer
-
-  - TODO FIRST write a SNAFU conversion function and test it on the SNAFU brochure values
-  */
-
-  /*cout << "DEBUG: testing:" << endl;
-  vector<string> test_snafu = {
-    "1",
-    "2",
-    "1=",
-    "1-",
-    "10",
-    "11",
-    "12",
-    "2=",
-    "2-",
-    "20",
-    "1=0",
-    "1-0",
-    "1=11-2",
-    "1-0---0",
-    "1121-1110-1=0"};
-
-  for (auto snafu:test_snafu) {
-    long long unsigned int val = FromSNAFU(snafu);
-    // cout << "DEBUG: decimal value of snafu '" << snafu << "' is " << val << endl;
-
-    string back_to_snafu = ToSNAFU(val);
-    // cout << "DEBUG: original snafu value:" << snafu << " which is decimal " << val << " is back to snafu:" << back_to_snafu << endl;
-  }*/
-  // TODO FINALLY remove all comment blocks
-
   // Part 1
   long long unsigned int fuel_req_sum = 0;
   for (auto req:input) {
     long long unsigned int val = FromSNAFU(req);
-    // cout << "DEBUG: val from input " << req << " is " << val << endl;
     fuel_req_sum += val;
   }
 
   // What SNAFU number do you supply to Bob's console?
   string fuel_req_sum_snafu = ToSNAFU(fuel_req_sum);
   cout << endl << "Part 1 answer: " << fuel_req_sum_snafu << endl;
-
-  // Part 2
-  // TODO
-  cout << endl << "Part 2 answer: " << endl;
 
   return 0;
 }
