@@ -146,5 +146,3 @@ min_space_to_delete = UPDATE_NEEDED_SPACE - (TOTAL_SPACE - root.total_size)
 
 to_delete_size = root.smallest_dir_above(min_space_to_delete)
 print(f'Part 2 answer: {to_delete_size}')
-
-# TODO after completing puzzle, install apt upgrades: apt list --upgradable
